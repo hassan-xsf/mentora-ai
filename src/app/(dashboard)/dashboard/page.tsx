@@ -4,6 +4,7 @@ import { getRoadmapsByStudent } from "@/lib/db/roadmaps";
 import { getProgressRecord, getActivityData } from "@/lib/db/progress";
 import { getStudentProfile, getStudentBadges } from "@/lib/db/practice";
 import { ActivityChart } from "@/components/progress/ActivityChart";
+import { AIFallbackBadge } from "@/components/ui/AIFallbackBadge";
 import type { Roadmap, Badge, ActivityDataPoint, ProgressRecord } from "@/types";
 
 // ─── XP level helpers ─────────────────────────────────────────────────────────
@@ -112,9 +113,12 @@ function RoadmapCard({ roadmap }: { roadmap: Roadmap }) {
           <h3 className="text-[14px] font-medium leading-snug tracking-[-0.2px] text-[#111111] truncate">
             {roadmap.title}
           </h3>
-          <p className="mt-0.5 text-[11px] text-[#9c9fa5]">
-            {new Date(roadmap.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-          </p>
+          <div className="mt-1 flex items-center gap-2 flex-wrap">
+            <p className="text-[11px] text-[#9c9fa5]">
+              {new Date(roadmap.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+            </p>
+            {roadmap.used_fallback && <AIFallbackBadge compact label="Fallback" />}
+          </div>
         </div>
         <span className="shrink-0 rounded-[4px] bg-[#f5f1ec] px-2 py-0.5 text-[11px] font-medium text-[#626260]">
           {pct}%

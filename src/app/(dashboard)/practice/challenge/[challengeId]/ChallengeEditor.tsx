@@ -178,6 +178,15 @@ export default function ChallengeEditor({
 
           {/* Scores + feedback */}
           <div className="space-y-3 px-4 py-3">
+            {result.used_fallback && (
+              <div className="flex items-start gap-2 rounded-[6px] border border-[#ff5600]/40 bg-[#ff5600]/10 px-3 py-2 text-[11px] text-[#ffa472]">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden className="mt-0.5 shrink-0">
+                  <path d="M8 2v5M8 11h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5" />
+                </svg>
+                <span>Fallback evaluation — the AI evaluator was unavailable. Scores are placeholders. Resubmit to get real feedback.</span>
+              </div>
+            )}
             <ScoreBar label="Correctness" score={result.correctness_score} />
             <ScoreBar label="Code Style" score={result.style_score} />
 

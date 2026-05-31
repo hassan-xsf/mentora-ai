@@ -182,6 +182,7 @@ CRITICAL OUTPUT RULES:
 - ALL 3 sections MUST be present. ALL 4 nodes per section MUST be present.`;
 
   let roadmapData: GeneratedRoadmap;
+  let usedFallback = false;
 
   try {
     const raw = await chatCompletion(prompt);
@@ -206,6 +207,7 @@ CRITICAL OUTPUT RULES:
   } catch (err) {
     console.error("[generate-roadmap] AI parse/validation failed, using full structured fallback:", err);
     roadmapData = buildFallbackRoadmap(careerTitle);
+    usedFallback = true;
   }
 
   // Insert roadmap
@@ -215,6 +217,7 @@ CRITICAL OUTPUT RULES:
       student_id: user.id,
       title: roadmapData.title,
       completion_percentage: 0,
+      used_fallback: usedFallback,
     })
     .select("id")
     .single();

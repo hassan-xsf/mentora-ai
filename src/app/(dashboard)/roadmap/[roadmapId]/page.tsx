@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth/session";
 import { getRoadmapById } from "@/lib/db/roadmaps";
 import { getMilestoneTestsForRoadmap, getUnlockedSections } from "@/lib/db/milestone-tests";
+import { AIFallbackBadge } from "@/components/ui/AIFallbackBadge";
 import RoadmapView from "./RoadmapView";
 
 type Props = {
@@ -51,10 +52,17 @@ export default async function RoadmapPage({ params }: Props) {
 
         {/* Header card */}
         <div className="mb-8 rounded-[12px] border border-[#d3cec6] bg-white p-6">
-          <p className="text-[11px] font-medium uppercase tracking-widest text-[#9c9fa5]">Learning Roadmap</p>
-          <h1 className="mt-1 text-[28px] font-medium leading-tight tracking-[-0.5px] text-[#111111]">
-            {roadmap.title}
-          </h1>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium uppercase tracking-widest text-[#9c9fa5]">Learning Roadmap</p>
+              <h1 className="mt-1 text-[28px] font-medium leading-tight tracking-[-0.5px] text-[#111111]">
+                {roadmap.title}
+              </h1>
+            </div>
+            {roadmap.used_fallback && (
+              <AIFallbackBadge compact label="Fallback" />
+            )}
+          </div>
 
           {/* Progress */}
           <div className="mt-5">

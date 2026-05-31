@@ -41,6 +41,7 @@ Return ONLY a valid JSON object with these exact fields:
 Return ONLY the JSON, no markdown, no explanation, no code blocks.`;
 
   let challengeData: GeneratedChallenge;
+  let usedFallback = false;
 
   try {
     const raw = await chatCompletion(prompt);
@@ -49,7 +50,12 @@ Return ONLY the JSON, no markdown, no explanation, no code blocks.`;
       .replace(/\s*```\s*$/, "")
       .trim();
     challengeData = JSON.parse(cleaned) as GeneratedChallenge;
-  } catch {
+    if (!challengeData.problem_statement || !challengeData.starter_code) {
+      throw new Error("AI returned incomplete challenge");
+    }
+  } catch (err) {
+    console.error("[generate-challenge] AI failed, using fallback:", err);
+    usedFallback = true;
     challengeData = {
       title: `${topic} Challenge`,
       problem_statement: `Write a ${language} function that solves a ${difficulty} ${topic} problem.\n\nExample:\nInput: [1, 2, 3]\nOutput: [3, 2, 1]`,
@@ -68,6 +74,7 @@ Return ONLY the JSON, no markdown, no explanation, no code blocks.`;
     difficulty,
     problem_statement: challengeData.problem_statement,
     starter_code: challengeData.starter_code,
+    used_fallback: usedFallback,
   });
 
   return { challengeId };

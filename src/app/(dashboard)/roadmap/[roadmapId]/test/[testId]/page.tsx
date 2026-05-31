@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth/session";
 import { getMilestoneTestById } from "@/lib/db/milestone-tests";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { AIFallbackBadge } from "@/components/ui/AIFallbackBadge";
 import { generateMilestoneTest } from "@/app/actions/generate-milestone-test";
 import TestForm from "./TestForm";
 import type { MilestoneQuestion, MilestoneTest } from "@/types";
@@ -52,10 +53,15 @@ export default async function TestPage({ params }: Props) {
 
         {/* Header card */}
         <div className="mb-6 rounded-[12px] border border-[#d3cec6] bg-white p-6">
-          <p className="text-[11px] font-medium uppercase tracking-widest text-[#9c9fa5]">Milestone Test</p>
-          <h1 className="mt-1 text-[24px] font-medium leading-tight tracking-[-0.4px] text-[#111111]">
-            {test.title}
-          </h1>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium uppercase tracking-widest text-[#9c9fa5]">Milestone Test</p>
+              <h1 className="mt-1 text-[24px] font-medium leading-tight tracking-[-0.4px] text-[#111111]">
+                {test.title}
+              </h1>
+            </div>
+            {test.used_fallback && <AIFallbackBadge compact label="Fallback" />}
+          </div>
           <div className="mt-3 flex items-center gap-2 text-[13px] text-[#626260]">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
               <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.5" />

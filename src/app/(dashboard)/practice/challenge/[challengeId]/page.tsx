@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth/session";
 import { getChallengeById } from "@/lib/db/practice";
+import { AIFallbackBadge } from "@/components/ui/AIFallbackBadge";
 import ChallengeEditor from "./ChallengeEditor";
 
 type Props = {
@@ -58,6 +59,11 @@ export default async function ChallengePage({ params }: Props) {
 
         {/* Problem content */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
+          {challenge.used_fallback && (
+            <div className="mb-4">
+              <AIFallbackBadge label="Fallback challenge" />
+            </div>
+          )}
           <div className="space-y-4">
             {paragraphs.map((para, i) => {
               // Detect example blocks (lines starting with Input: / Output: / Example)

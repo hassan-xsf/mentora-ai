@@ -87,6 +87,7 @@ OUTPUT FORMAT — return ONLY this JSON array, nothing else:
 CRITICAL: Output ONLY the raw JSON array. No markdown fences. No explanations before or after. Start with [ and end with ].`;
 
   let questions: MilestoneQuestion[] = [];
+  let usedFallback = false;
 
   try {
     const raw = await chatCompletion(prompt);
@@ -113,6 +114,7 @@ CRITICAL: Output ONLY the raw JSON array. No markdown fences. No explanations be
     }
   } catch (err) {
     console.error("[generate-milestone-test] AI parse failed, using fallback:", err);
+    usedFallback = true;
     // Fallback questions — only used if AI completely fails
     questions = nodeTopics.slice(0, 5).map((topic, i) => ({
       id: `q${i + 1}`,
@@ -131,7 +133,7 @@ CRITICAL: Output ONLY the raw JSON array. No markdown fences. No explanations be
   // Use admin client to bypass RLS for the write
   const { error: updateError } = await adminSupabase
     .from("milestone_tests")
-    .update({ questions })
+    .update({ questions, used_fallback: usedFallback })
     .eq("id", testId);
 
   if (updateError) {

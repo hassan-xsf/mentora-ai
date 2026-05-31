@@ -34,6 +34,7 @@ export type Roadmap = {
   career?: Career;
   title: string;
   completion_percentage: number;
+  used_fallback?: boolean;
   created_at: string;
 };
 
@@ -76,6 +77,7 @@ export type MilestoneTest = {
   type: MilestoneTestType;
   title: string;
   questions: MilestoneQuestion[];
+  used_fallback?: boolean;
   created_at: string;
 };
 
@@ -127,6 +129,7 @@ export type CodingChallenge = {
   evaluation_result: EvaluationResult | null;
   status: "pending" | "submitted" | "evaluated" | "pending_evaluation";
   xp_awarded: number;
+  used_fallback?: boolean;
   created_at: string;
 };
 
@@ -136,6 +139,7 @@ export type EvaluationResult = {
   correctness_score: number;
   style_score: number;
   xp_earned: number;
+  used_fallback?: boolean;
 };
 
 // ─── Gamification ─────────────────────────────────────────────────────────────

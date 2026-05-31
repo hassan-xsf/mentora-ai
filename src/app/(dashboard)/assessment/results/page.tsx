@@ -1,7 +1,8 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { AILabel } from "@/components/ui/AILabel";
-import { getCareerSuggestions, type CareerSuggestionResult } from "@/app/actions/career-suggestions";
+import { AIFallbackBadge } from "@/components/ui/AIFallbackBadge";
+import { getCareerSuggestions } from "@/app/actions/career-suggestions";
 import type { AssessmentAnswer } from "@/types";
 import CareerResultsClient from "./CareerResultsClient";
 
@@ -35,7 +36,7 @@ function SkeletonCard() {
 }
 
 async function CareerResults({ answers }: { answers: AssessmentAnswer[] }) {
-  const suggestions = await getCareerSuggestions(answers);
+  const { suggestions, usedFallback } = await getCareerSuggestions(answers);
 
   if (suggestions.length === 0) {
     return (
@@ -53,7 +54,14 @@ async function CareerResults({ answers }: { answers: AssessmentAnswer[] }) {
     );
   }
 
-  return <CareerResultsClient suggestions={suggestions} />;
+  return (
+    <div className="space-y-4">
+      {usedFallback && (
+        <AIFallbackBadge label="Generic career suggestions" />
+      )}
+      <CareerResultsClient suggestions={suggestions} />
+    </div>
+  );
 }
 
 export default async function AssessmentResultsPage({ searchParams }: Props) {

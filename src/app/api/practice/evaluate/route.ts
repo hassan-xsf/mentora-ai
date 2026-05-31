@@ -75,15 +75,18 @@ Return ONLY the JSON, no markdown, no explanation.`;
         style_score: Number(parsed.style_score ?? 0),
         feedback: String(parsed.feedback ?? ""),
         xp_earned: Number(parsed.xp_earned ?? 0),
+        used_fallback: false,
       };
-    } catch {
-      // Fallback evaluation
+    } catch (err) {
+      console.error("[practice/evaluate] AI failed, using fallback:", err);
+      // Fallback evaluation — could not really score, give middle marks
       evalResult = {
         passed: code.trim().length > 20,
         correctness_score: 50,
         style_score: 50,
-        feedback: "Your submission has been received. Keep practicing to improve your solution.",
+        feedback: "The AI evaluator was unavailable, so this is a placeholder score. Resubmit once the AI service is back to get real feedback.",
         xp_earned: Math.floor(XP_VALUES[(challenge.difficulty as Difficulty) ?? "easy"] / 2),
+        used_fallback: true,
       };
     }
 

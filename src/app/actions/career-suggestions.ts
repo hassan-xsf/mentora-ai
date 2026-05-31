@@ -14,9 +14,14 @@ export type CareerSuggestionResult = {
   why_good_fit: string;
 };
 
+export type CareerSuggestionsResponse = {
+  suggestions: CareerSuggestionResult[];
+  usedFallback: boolean;
+};
+
 export async function getCareerSuggestions(
   answers: AssessmentAnswer[]
-): Promise<CareerSuggestionResult[]> {
+): Promise<CareerSuggestionsResponse> {
   const answersText = answers
     .map((a, i) => `Q${i + 1}: ${Array.isArray(a.answer) ? a.answer.join(", ") : a.answer}`)
     .join("\n");
@@ -46,10 +51,13 @@ Return ONLY the JSON array, no markdown, no explanation, no code blocks.`;
       .replace(/\s*```\s*$/, "")
       .trim();
     const parsed = JSON.parse(cleaned) as CareerSuggestionResult[];
-    return Array.isArray(parsed) ? parsed.slice(0, 5) : [];
-  } catch {
-    // Return fallback suggestions on parse error
-    return [
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      throw new Error("AI returned non-array or empty array");
+    }
+    return { suggestions: parsed.slice(0, 5), usedFallback: false };
+  } catch (err) {
+    console.error("[career-suggestions] AI failed, using fallback:", err);
+    return { usedFallback: true, suggestions: [
       {
         title: "Software Engineer",
         description: "Design and build software applications across web, mobile, and backend systems.",
@@ -100,6 +108,6 @@ Return ONLY the JSON array, no markdown, no explanation, no code blocks.`;
         salary_currency: "USD",
         why_good_fit: "Product management bridges technical and business skills, making it ideal for those who enjoy strategy and collaboration.",
       },
-    ];
+    ] };
   }
 }

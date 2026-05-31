@@ -108,6 +108,7 @@ export type Database = {
           career_id: string | null;
           title: string;
           completion_percentage: number;
+          used_fallback: boolean;
           created_at: string;
         };
         Insert: {
@@ -116,6 +117,7 @@ export type Database = {
           career_id?: string | null;
           title: string;
           completion_percentage?: number;
+          used_fallback?: boolean;
           created_at?: string;
         };
         Update: {
@@ -124,6 +126,7 @@ export type Database = {
           career_id?: string | null;
           title?: string;
           completion_percentage?: number;
+          used_fallback?: boolean;
           created_at?: string;
         };
         Relationships: Relationships;
@@ -256,6 +259,7 @@ export type Database = {
           type: "mcq" | "qa" | "coding";
           title: string;
           questions: unknown;
+          used_fallback: boolean;
           created_at: string;
         };
         Insert: {
@@ -265,6 +269,7 @@ export type Database = {
           type: "mcq" | "qa" | "coding";
           title: string;
           questions?: unknown;
+          used_fallback?: boolean;
           created_at?: string;
         };
         Update: {
@@ -274,6 +279,7 @@ export type Database = {
           type?: "mcq" | "qa" | "coding";
           title?: string;
           questions?: unknown;
+          used_fallback?: boolean;
           created_at?: string;
         };
         Relationships: Relationships;
@@ -369,6 +375,7 @@ export type Database = {
           evaluation_result: unknown | null;
           status: "pending" | "submitted" | "evaluated" | "pending_evaluation";
           xp_awarded: number;
+          used_fallback: boolean;
           created_at: string;
         };
         Insert: {
@@ -383,6 +390,7 @@ export type Database = {
           evaluation_result?: unknown | null;
           status?: "pending" | "submitted" | "evaluated" | "pending_evaluation";
           xp_awarded?: number;
+          used_fallback?: boolean;
           created_at?: string;
         };
         Update: {
@@ -397,6 +405,7 @@ export type Database = {
           evaluation_result?: unknown | null;
           status?: "pending" | "submitted" | "evaluated" | "pending_evaluation";
           xp_awarded?: number;
+          used_fallback?: boolean;
           created_at?: string;
         };
         Relationships: Relationships;

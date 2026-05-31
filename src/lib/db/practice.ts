@@ -8,6 +8,7 @@ export async function createChallenge(data: {
   difficulty: "easy" | "medium" | "hard";
   problem_statement: string;
   starter_code: string;
+  used_fallback?: boolean;
 }): Promise<string> {
   const supabase = await createClient();
   const { data: challenge, error } = await supabase

@@ -32,6 +32,24 @@ type GeneratedRoadmap = {
   sections: RoadmapSection[];
 };
 
+function normalizeRoadmap(data: GeneratedRoadmap): GeneratedRoadmap {
+  return {
+    ...data,
+    sections: (data.sections ?? []).map((section) => ({
+      ...section,
+      nodes: (section.nodes ?? []).map((node) => ({
+        ...node,
+        tasks: (node.tasks ?? []).map((t) =>
+          typeof t === "string" ? { title: t } : t
+        ).filter((t) => t.title),
+        resources: (node.resources ?? []).map((r) =>
+          typeof r === "string" ? { title: r, type: "note" as const, url: null } : r
+        ).filter((r) => r.title),
+      })),
+    })),
+  };
+}
+
 function extractJSON(raw: string): string {
   let cleaned = raw
     .replace(/^```(?:json)?\s*/i, "")
@@ -138,7 +156,7 @@ Rules:
     console.log("[generate-roadmap] raw AI response length:", raw.length);
     console.log("[generate-roadmap] raw AI response (first 2000):", raw.slice(0, 2000));
     const cleaned = extractJSON(raw);
-    roadmapData = JSON.parse(cleaned) as GeneratedRoadmap;
+    roadmapData = normalizeRoadmap(JSON.parse(cleaned) as GeneratedRoadmap);
 
     // Validate structure — if the AI under-delivered, throw to use fallback
     if (

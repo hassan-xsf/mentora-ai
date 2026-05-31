@@ -113,9 +113,11 @@ export function NodePanel({ node, onClose, roadmapId, onTaskToggle }: Props) {
                           {resource.title}
                         </a>
                       ) : (
-                        <p className="truncate text-[13px] font-medium text-[#111111]">{resource.title}</p>
+                        <p className="truncate text-[13px] font-medium text-[#626260]">{resource.title}</p>
                       )}
-                      <span className="text-[11px] capitalize text-[#9c9fa5]">{resource.type}</span>
+                      <span className="text-[11px] capitalize text-[#9c9fa5]">
+                        {resource.type}{!resource.url && " · no link"}
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -124,11 +126,13 @@ export function NodePanel({ node, onClose, roadmapId, onTaskToggle }: Props) {
           )}
 
           {/* Tasks */}
-          {tasks.length > 0 && (
-            <div>
-              <p className="mb-2.5 text-[11px] font-medium uppercase tracking-widest text-[#9c9fa5]">
-                Tasks — {doneTasks}/{tasks.length} done
-              </p>
+          <div>
+            <p className="mb-2.5 text-[11px] font-medium uppercase tracking-widest text-[#9c9fa5]">
+              Tasks{tasks.length > 0 && ` — ${doneTasks}/${tasks.length} done`}
+            </p>
+            {tasks.length === 0 ? (
+              <p className="text-[13px] text-[#9c9fa5]">No tasks for this topic.</p>
+            ) : (
               <div className="space-y-2">
                 {tasks.map((task) => (
                   <button
@@ -158,8 +162,8 @@ export function NodePanel({ node, onClose, roadmapId, onTaskToggle }: Props) {
                   </button>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </>

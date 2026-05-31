@@ -4,13 +4,21 @@
 
 | | |
 |---|---|
-| **Provider** | Google Gemini via `@google/generative-ai` |
-| **Model** | `gemini-2.0-flash-lite` (all calls) |
-| **Client** | `src/lib/openai/client.ts` — singleton `GoogleGenerativeAI` instance |
-| **Helpers** | `src/lib/openai/stream.ts` — `chatCompletion()`, `streamChatCompletion()`, `chatCompletionWithHistory()`, `streamChatWithHistory()` |
-| **API Key env var** | `GEMINI_API_KEY` |
+| **Service** | Mentora AI HTTP endpoint |
+| **Client** | `src/lib/ai/client.ts` — thin `fetch` wrapper |
+| **Helpers** | `src/lib/ai/stream.ts` — `chatCompletion()`, `streamChatCompletion()`, `chatCompletionWithHistory()`, `streamChatWithHistory()` |
+| **Env vars** | `AI_API_URL`, `AI_SECRET_TOKEN` |
 
-> Note: The `lib/openai/` folder name is a legacy artifact — the provider is Google Gemini, not OpenAI.
+The service exposes a single GET endpoint:
+
+```ts
+const res = await fetch(`${AI_API_URL}?query=${encodeURIComponent(prompt)}`, {
+  headers: { "x-secret-token": AI_SECRET_TOKEN },
+});
+const { response } = await res.json();
+```
+
+All call sites — career suggestions, roadmap generation, challenge creation, milestone test generation, code evaluation, and chat — fold their prompts into a single `query` string and hit this same endpoint. Chat history is serialised as labelled turns (`User: …` / `Assistant: …`) before being sent.
 
 ### Prompt strategy
 

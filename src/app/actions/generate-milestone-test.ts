@@ -1,6 +1,6 @@
 "use server";
 
-import { chatCompletion } from "@/lib/openai/stream";
+import { chatCompletion } from "@/lib/ai/stream";
 import { createClient } from "@/lib/supabase/server";
 import type { MilestoneQuestion } from "@/types";
 

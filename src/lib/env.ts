@@ -15,8 +15,9 @@ export const env = {
     publishableKey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     get secretKey() { return assertEnv("SUPABASE_SECRET_KEY"); },
   },
-  gemini: {
-    get apiKey() { return assertEnv("GEMINI_API_KEY"); },
+  ai: {
+    get url() { return assertEnv("AI_API_URL"); },
+    get token() { return assertEnv("AI_SECRET_TOKEN"); },
   },
 } as const;
 

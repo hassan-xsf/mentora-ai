@@ -1,6 +1,6 @@
 "use server";
 
-import { chatCompletion } from "@/lib/openai/stream";
+import { chatCompletion } from "@/lib/ai/stream";
 import { requireUser } from "@/lib/auth/session";
 import { createChallenge } from "@/lib/db/practice";
 import { createClient } from "@/lib/supabase/server";

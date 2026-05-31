@@ -1,6 +1,6 @@
 "use server";
 
-import { chatCompletion } from "@/lib/openai/stream";
+import { chatCompletion } from "@/lib/ai/stream";
 import type { AssessmentAnswer } from "@/types";
 
 export type CareerSuggestionResult = {

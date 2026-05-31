@@ -22,7 +22,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {/* Hero copy */}
         <div className="relative space-y-5">
           <p className="text-[11px] font-medium tracking-widest uppercase text-white/40">
-            Mentora AI · Powered by Gemini
+            Mentora AI · Your learning copilot
           </p>
           <h1 className="text-[52px] font-medium leading-[1.08] tracking-[-1.4px] text-white">
             Your career,<br />

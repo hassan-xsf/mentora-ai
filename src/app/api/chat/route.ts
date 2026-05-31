@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getModel } from "@/lib/openai/client";
+import { streamChatWithHistory } from "@/lib/ai/stream";
 import { saveChatMessage } from "@/lib/db/chat";
 
 const SYSTEM_PROMPT = `You are an AI educational assistant for students learning new career skills.
@@ -40,60 +40,31 @@ export async function POST(request: NextRequest) {
     // Save user message to DB
     await saveChatMessage(user.id, "user", message);
 
-    const model = getModel();
-
-    // Build history for Gemini: role mapping assistant -> model
-    const geminiHistory = history.map((msg) => ({
-      role: msg.role === "assistant" ? ("model" as const) : ("user" as const),
-      parts: [{ text: msg.content }],
-    }));
-
-    // Prepend system context as a user/model exchange if no history
-    const fullHistory =
-      geminiHistory.length === 0
-        ? [
-            {
-              role: "user" as const,
-              parts: [{ text: SYSTEM_PROMPT + "\n\nUnderstood. I will only help with educational topics." }],
-            },
-            {
-              role: "model" as const,
-              parts: [{ text: "Understood. I'm your educational assistant and I'll only help with learning, programming, technology, and career development topics." }],
-            },
-          ]
-        : [
-            {
-              role: "user" as const,
-              parts: [{ text: SYSTEM_PROMPT }],
-            },
-            {
-              role: "model" as const,
-              parts: [{ text: "Understood. I'm your educational assistant." }],
-            },
-            ...geminiHistory,
-          ];
-
     const contextualMessage = nodeContext
       ? `[Context: Student is studying "${nodeContext}"]\n\n${message}`
       : message;
 
-    const chat = model.startChat({ history: fullHistory });
-    const result = await chat.sendMessageStream(contextualMessage);
+    // Build history shape expected by the AI helper
+    const aiHistory = history.map((msg) => ({
+      role: msg.role,
+      content: msg.content,
+    }));
 
-    // Collect full response and stream it
     let fullText = "";
 
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder();
         try {
-          for await (const chunk of result.stream) {
-            const delta = chunk.text();
-            if (delta) {
-              fullText += delta;
-              controller.enqueue(encoder.encode(delta));
-            }
-          }
+          await streamChatWithHistory(
+            aiHistory,
+            contextualMessage,
+            (chunk) => {
+              fullText += chunk;
+              controller.enqueue(encoder.encode(chunk));
+            },
+            SYSTEM_PROMPT
+          );
         } finally {
           // Save assistant response to DB
           await saveChatMessage(user.id, "assistant", fullText);

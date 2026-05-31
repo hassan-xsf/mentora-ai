@@ -27,7 +27,7 @@ export function isAIUnavailable(error: unknown): boolean {
 export const AI_UNAVAILABLE_MESSAGE =
   "Our AI service is currently unavailable. Please try again in a moment.";
 
-export function isGeminiRateLimited(error: unknown): boolean {
+export function isAIRateLimited(error: unknown): boolean {
   if (error instanceof Error) {
     const msg = error.message.toLowerCase();
     return (
@@ -41,5 +41,5 @@ export function isGeminiRateLimited(error: unknown): boolean {
   return false;
 }
 
-export const GEMINI_RATE_LIMIT_MESSAGE =
-  "Gemini AI rate limit reached. Please wait a moment and try again.";
+export const AI_RATE_LIMIT_MESSAGE =
+  "AI rate limit reached. Please wait a moment and try again.";

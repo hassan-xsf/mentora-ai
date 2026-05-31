@@ -1,6 +1,6 @@
 # Mentora AI
 
-An AI-powered career learning platform that helps students discover their ideal tech career, generate personalised learning roadmaps, practise coding, and track progress — all driven by Google Gemini.
+An AI-powered career learning platform that helps students discover their ideal tech career, generate personalised learning roadmaps, practise coding, and track progress.
 
 ---
 
@@ -34,8 +34,7 @@ AI Student Platform guides students from "I don't know what to study" to a struc
 | **Styling** | Tailwind CSS v4 — Intercom-inspired cream/charcoal design system |
 | **Database** | Supabase (PostgreSQL + Row Level Security + Auth) |
 | **Auth** | Supabase Auth (email/password) with SSR session management |
-| **AI Provider** | Google Gemini via `@google/generative-ai` |
-| **AI Model** | `gemini-2.0-flash-lite` |
+| **AI Service** | Mentora AI endpoint (`AI_API_URL`) |
 | **Code Editor** | CodeMirror 6 (`@uiw/react-codemirror`) with VS Code Dark theme |
 | **Animations** | Framer Motion |
 
@@ -47,7 +46,7 @@ AI Student Platform guides students from "I don't know what to study" to a struc
 
 - Node.js 18+
 - A [Supabase](https://supabase.com) project
-- A [Google AI Studio](https://aistudio.google.com) API key
+- An AI service URL + secret token (provided separately)
 
 ### 1. Clone and install dependencies
 
@@ -67,8 +66,9 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
 SUPABASE_SECRET_KEY=your_supabase_service_role_key
 
-# Google Gemini
-GEMINI_API_KEY=your_gemini_api_key
+# AI service
+AI_API_URL=https://ai.ihassn.com/ai
+AI_SECRET_TOKEN=your_ai_secret_token
 
 # App
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
@@ -108,13 +108,18 @@ Open [http://localhost:3000](http://localhost:3000).
    - **service_role / secret key** → `SUPABASE_SECRET_KEY`
 4. Navigate to **Authentication → URL Configuration** and add `http://localhost:3000` to the allowed redirect URLs
 
-### Google Gemini
+### AI Service
 
-1. Go to [Google AI Studio](https://aistudio.google.com)
-2. Click **Get API key** → **Create API key**
-3. Copy the key → `GEMINI_API_KEY`
+The platform talks to a single AI HTTP endpoint defined by `AI_API_URL` and authenticated with a bearer-style `x-secret-token` header (`AI_SECRET_TOKEN`).
 
-The platform uses `gemini-2.0-flash-lite` for all AI calls (career suggestions, roadmap generation, challenge creation, milestone test generation, code evaluation, and chat).
+```ts
+const res = await fetch(`${AI_API_URL}?query=...`, {
+  headers: { "x-secret-token": AI_SECRET_TOKEN },
+});
+const { response } = await res.json();
+```
+
+All AI calls (career suggestions, roadmap generation, challenge creation, milestone test generation, code evaluation, and chat) route through this single endpoint via `src/lib/ai/client.ts`.
 
 ---
 
@@ -125,7 +130,8 @@ The platform uses `gemini-2.0-flash-lite` for all AI calls (career suggestions, 
 | `NEXT_PUBLIC_SUPABASE_URL` | ✅ | Your Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | ✅ | Supabase anon/public key (safe for browser) |
 | `SUPABASE_SECRET_KEY` | ✅ | Supabase service role key (server only — never expose) |
-| `GEMINI_API_KEY` | ✅ | Google Gemini API key |
+| `AI_API_URL` | ✅ | Base URL of the AI service |
+| `AI_SECRET_TOKEN` | ✅ | Secret token sent as the `x-secret-token` header |
 | `NEXT_PUBLIC_SITE_URL` | ✅ | Full URL of the app (`http://localhost:3000` in dev) |
 
 ---
@@ -173,7 +179,7 @@ src/
     auth/             # session utilities
     db/               # database access functions (roadmaps, progress, practice…)
     gamification/     # XP calculation, badge logic, streak handling
-    openai/           # Gemini client + streaming helpers
+    ai/               # AI client + streaming helpers
     supabase/         # server client, browser client, admin (service-role) client
   types/              # domain types + generated database types
 supabase/

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { chatCompletion } from "@/lib/openai/stream";
+import { chatCompletion } from "@/lib/ai/stream";
 import { awardXP, XP_VALUES } from "@/lib/gamification/xp";
 import { checkAndAwardBadges } from "@/lib/gamification/badges";
 import { updateStreak } from "@/lib/gamification/streaks";

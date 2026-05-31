@@ -8,7 +8,7 @@ import { requireUser } from "@/lib/auth/session";
 type RoadmapResource = {
   title: string;
   type: "video" | "article" | "note";
-  url?: string;
+  url?: string | null;
 };
 
 type RoadmapTask = {
@@ -42,8 +42,8 @@ function normalizeRoadmap(data: GeneratedRoadmap): GeneratedRoadmap {
         tasks: (node.tasks ?? []).map((t) =>
           typeof t === "string" ? { title: t } : t
         ).filter((t) => t.title),
-        resources: (node.resources ?? []).map((r) =>
-          typeof r === "string" ? { title: r, type: "note" as const, url: null } : r
+        resources: (node.resources ?? []).map((r): RoadmapResource =>
+          typeof r === "string" ? { title: r, type: "note", url: null } : r
         ).filter((r) => r.title),
       })),
     })),

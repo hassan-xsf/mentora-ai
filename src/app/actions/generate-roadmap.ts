@@ -32,6 +32,78 @@ type GeneratedRoadmap = {
   sections: RoadmapSection[];
 };
 
+function extractJSON(raw: string): string {
+  let cleaned = raw
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/, "")
+    .trim();
+
+  const firstObj = cleaned.indexOf("{");
+  const firstArr = cleaned.indexOf("[");
+  const candidates = [firstObj, firstArr].filter((i) => i !== -1);
+  const first = candidates.length > 0 ? Math.min(...candidates) : -1;
+
+  const last = Math.max(cleaned.lastIndexOf("}"), cleaned.lastIndexOf("]"));
+
+  if (first !== -1 && last > first) {
+    cleaned = cleaned.slice(first, last + 1);
+  }
+  return cleaned;
+}
+
+function buildFallbackRoadmap(careerTitle: string): GeneratedRoadmap {
+  const sections = [
+    {
+      title: "Foundations",
+      nodeTitles: [
+        `Core Concepts of ${careerTitle}`,
+        "Essential Tools & Setup",
+        "Fundamental Skills",
+        "First Hands-On Project",
+      ],
+    },
+    {
+      title: "Intermediate",
+      nodeTitles: [
+        "Applied Techniques",
+        "Real-World Patterns",
+        "Working with Data",
+        "Collaboration & Workflows",
+      ],
+    },
+    {
+      title: "Advanced",
+      nodeTitles: [
+        "System Design & Architecture",
+        "Performance & Optimisation",
+        "Specialisation Topics",
+        "Production-Ready Practices",
+      ],
+    },
+  ];
+
+  return {
+    title: `Become a ${careerTitle}`,
+    sections: sections.map((s) => ({
+      title: s.title,
+      nodes: s.nodeTitles.map((title) => ({
+        title,
+        description: `Learn ${title.toLowerCase()} as a ${careerTitle}. Build practical understanding through guided study and hands-on practice.`,
+        resources: [
+          { title: `${title} — overview video`, type: "video" as const, url: undefined },
+          { title: `${title} — detailed guide`, type: "article" as const, url: undefined },
+          { title: `${title} — key takeaways`, type: "note" as const, url: undefined },
+        ],
+        tasks: [
+          { title: `Read about ${title.toLowerCase()} and take notes` },
+          { title: `Build a small example demonstrating ${title.toLowerCase()}` },
+          { title: `Explain ${title.toLowerCase()} in your own words` },
+        ],
+      })),
+    })),
+  };
+}
+
 export async function generateRoadmap(
   careerTitle: string,
   careerDescription: string
@@ -46,74 +118,94 @@ export async function generateRoadmap(
     { onConflict: "id", ignoreDuplicates: true }
   );
 
-  const prompt = `You are a curriculum designer AI. Generate a comprehensive learning roadmap for someone who wants to become a ${careerTitle}.
+  const prompt = `You are an expert curriculum designer creating a comprehensive learning roadmap for someone who wants to become a ${careerTitle}.
 
-Career description: ${careerDescription}
+CAREER CONTEXT:
+${careerDescription}
 
-Return ONLY a valid JSON object with this exact structure:
+YOUR TASK: Generate a full 3-section roadmap with 4 nodes per section (12 nodes total).
+
+STRICT REQUIREMENTS:
+1. EXACTLY 3 sections with these EXACT titles in this EXACT order:
+   - "Foundations" (absolute beginner concepts)
+   - "Intermediate" (applied skills and real-world patterns)
+   - "Advanced" (expert-level specialisation and production concerns)
+
+2. EACH section MUST contain EXACTLY 4 nodes (12 nodes total — NEVER fewer)
+
+3. EACH node MUST have:
+   - title: specific topic name (NOT "Introduction to X" — pick a real, distinct concept)
+   - description: 2-3 sentences explaining what the learner will master
+   - resources: array of EXACTLY 3 items, each with {title, type, url}
+     - type MUST be one of: "video", "article", "note"
+     - url can be null
+   - tasks: array of EXACTLY 3 specific, actionable tasks
+
+4. Node titles must be DIFFERENT and progressively build on each other. Examples for a Software Engineer roadmap:
+   Foundations: "Variables & Data Types", "Control Flow & Loops", "Functions & Scope", "Arrays & Objects"
+   Intermediate: "REST APIs", "Database Modelling", "Authentication", "Error Handling Patterns"
+   Advanced: "System Design", "Caching Strategies", "Concurrency", "Production Observability"
+
+   DO NOT use generic titles like "Introduction" or "Getting Started". Pick concrete topics.
+
+OUTPUT FORMAT — return ONLY this JSON object:
 {
-  "title": "string (e.g., 'Become a ${careerTitle}')",
+  "title": "Become a ${careerTitle}",
   "sections": [
     {
-      "title": "string (section name, e.g., 'Foundations')",
+      "title": "Foundations",
       "nodes": [
         {
-          "title": "string (topic name)",
-          "description": "string (2-3 sentences about what to learn)",
+          "title": "Concrete Topic Name",
+          "description": "Two to three sentence explanation of what they'll learn and why it matters.",
           "resources": [
-            { "title": "string", "type": "video|article|note", "url": "string or null" }
+            {"title": "Resource title", "type": "video", "url": null},
+            {"title": "Resource title", "type": "article", "url": null},
+            {"title": "Resource title", "type": "note", "url": null}
           ],
           "tasks": [
-            { "title": "string (actionable task)" }
+            {"title": "Specific actionable task"},
+            {"title": "Specific actionable task"},
+            {"title": "Specific actionable task"}
           ]
-        }
+        },
+        ... 3 more nodes ...
       ]
-    }
+    },
+    ... 2 more sections (Intermediate, Advanced) with 4 nodes each ...
   ]
 }
 
-Requirements:
-- Create exactly 3 sections (e.g., Foundations, Intermediate, Advanced)
-- Each section must have 3-5 nodes
-- Each node must have 2-3 resources and 2-4 tasks
-- Resource types must be exactly: video, article, or note
-- URLs can be null if not known
-- Make tasks specific and actionable
-- Return ONLY the JSON, no markdown, no explanation`;
+CRITICAL OUTPUT RULES:
+- Return ONLY the raw JSON object. Start with { and end with }
+- NO markdown code fences. NO explanations before or after.
+- ALL 3 sections MUST be present. ALL 4 nodes per section MUST be present.`;
 
   let roadmapData: GeneratedRoadmap;
 
   try {
     const raw = await chatCompletion(prompt);
-    const cleaned = raw
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```\s*$/, "")
-      .trim();
+    const cleaned = extractJSON(raw);
     roadmapData = JSON.parse(cleaned) as GeneratedRoadmap;
-  } catch {
-    // Fallback minimal roadmap
-    roadmapData = {
-      title: `Become a ${careerTitle}`,
-      sections: [
-        {
-          title: "Foundations",
-          nodes: [
-            {
-              title: "Introduction to " + careerTitle,
-              description: "Learn the fundamental concepts and basics needed to start your journey.",
-              resources: [
-                { title: "Getting Started Guide", type: "article" as const, url: undefined },
-                { title: "Introduction Video", type: "video" as const, url: undefined },
-              ],
-              tasks: [
-                { title: "Research the field and key technologies" },
-                { title: "Set up your development environment" },
-              ],
-            },
-          ],
-        },
-      ],
-    };
+
+    // Validate structure — if the AI under-delivered, throw to use fallback
+    if (
+      !roadmapData.sections ||
+      !Array.isArray(roadmapData.sections) ||
+      roadmapData.sections.length < 2
+    ) {
+      throw new Error(`AI returned only ${roadmapData.sections?.length ?? 0} sections`);
+    }
+
+    // Check each section has at least 2 nodes
+    for (const section of roadmapData.sections) {
+      if (!section.nodes || !Array.isArray(section.nodes) || section.nodes.length < 2) {
+        throw new Error(`Section "${section.title}" has only ${section.nodes?.length ?? 0} nodes`);
+      }
+    }
+  } catch (err) {
+    console.error("[generate-roadmap] AI parse/validation failed, using full structured fallback:", err);
+    roadmapData = buildFallbackRoadmap(careerTitle);
   }
 
   // Insert roadmap

@@ -85,30 +85,35 @@ export function ChatPanel({ nodeContext }: Props) {
           }),
         });
 
+        const data = (await response.json().catch(() => ({}))) as {
+          reply?: string;
+          error?: string;
+          aiError?: boolean;
+        };
+
         if (!response.ok) {
-          throw new Error("Failed to get response");
+          throw new Error(data.error ?? `HTTP ${response.status}`);
         }
 
-        const reader = response.body?.getReader();
-        if (!reader) throw new Error("No response body");
+        const reply = data.reply ?? "I didn't get a response. Please try again.";
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantMsg.id ? { ...m, content: reply } : m
+          )
+        );
 
-        const decoder = new TextDecoder();
-        let accumulated = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          accumulated += chunk;
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantMsg.id ? { ...m, content: accumulated } : m
-            )
-          );
+        if (data.aiError) {
+          setError(reply);
         }
-      } catch {
-        setError("Failed to send message. Please try again.");
-        setMessages((prev) => prev.filter((m) => m.id !== assistantMsg.id));
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Failed to send message.";
+        const display = `${msg}. Please try again.`;
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantMsg.id ? { ...m, content: display } : m
+          )
+        );
+        setError(display);
       } finally {
         setStreaming(false);
       }

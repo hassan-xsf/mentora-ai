@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { streamChatWithHistory } from "@/lib/ai/stream";
+import { chatCompletionWithHistory } from "@/lib/ai/stream";
 import { saveChatMessage } from "@/lib/db/chat";
 
 const SYSTEM_PROMPT = `You are an AI educational assistant for students learning new career skills.
@@ -13,6 +13,24 @@ type MessageEntry = {
   role: "user" | "assistant";
   content: string;
 };
+
+function friendlyAIError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+
+  if (msg.includes("403")) {
+    return "The AI service blocked this request (403). The firewall rule may still be deploying — please try again in a minute.";
+  }
+  if (msg.includes("429") || msg.toLowerCase().includes("rate limit")) {
+    return "The AI service is rate-limited right now. Please wait a moment and try again.";
+  }
+  if (msg.includes("503") || msg.toLowerCase().includes("unavailable")) {
+    return "The AI service is temporarily unavailable. Please try again shortly.";
+  }
+  if (msg.toLowerCase().includes("fetch failed") || msg.toLowerCase().includes("network")) {
+    return "Couldn't reach the AI service. Check your connection and try again.";
+  }
+  return `AI service error: ${msg.slice(0, 200)}`;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,49 +55,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
     }
 
-    // Save user message to DB
     await saveChatMessage(user.id, "user", message);
 
     const contextualMessage = nodeContext
       ? `[Context: Student is studying "${nodeContext}"]\n\n${message}`
       : message;
 
-    // Build history shape expected by the AI helper
     const aiHistory = history.map((msg) => ({
       role: msg.role,
       content: msg.content,
     }));
 
-    let fullText = "";
-
-    const stream = new ReadableStream({
-      async start(controller) {
-        const encoder = new TextEncoder();
-        try {
-          await streamChatWithHistory(
-            aiHistory,
-            contextualMessage,
-            (chunk) => {
-              fullText += chunk;
-              controller.enqueue(encoder.encode(chunk));
-            },
-            SYSTEM_PROMPT
-          );
-        } finally {
-          // Save assistant response to DB
-          await saveChatMessage(user.id, "assistant", fullText);
-          controller.close();
-        }
-      },
-    });
-
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Transfer-Encoding": "chunked",
-        "X-Content-Type-Options": "nosniff",
-      },
-    });
+    try {
+      const reply = await chatCompletionWithHistory(aiHistory, contextualMessage, SYSTEM_PROMPT);
+      const text = reply.trim() || "I didn't get a response. Please try again.";
+      await saveChatMessage(user.id, "assistant", text).catch(() => undefined);
+      return NextResponse.json({ reply: text });
+    } catch (err) {
+      console.error("[chat] AI error:", err);
+      const friendly = friendlyAIError(err);
+      await saveChatMessage(user.id, "assistant", friendly).catch(() => undefined);
+      // 200 with an error flag so the UI can render it inline as an assistant message
+      return NextResponse.json({ reply: friendly, aiError: true });
+    }
   } catch (error) {
     console.error("Chat API error:", error);
     return NextResponse.json(

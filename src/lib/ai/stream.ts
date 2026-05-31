@@ -1,29 +1,11 @@
-import { aiQuery, aiStream } from "./client";
+import { aiQuery } from "./client";
 
 type HistoryEntry = { role: "user" | "model" | "assistant"; parts?: string; content?: string };
 
-/**
- * Send a single prompt and return the full response.
- */
 export async function chatCompletion(prompt: string): Promise<string> {
   return aiQuery(prompt);
 }
 
-/**
- * Streaming variant — emits chunks via callback.
- */
-export async function streamChatCompletion(
-  prompt: string,
-  onChunk: (chunk: string) => void
-): Promise<string> {
-  return aiStream(prompt, onChunk);
-}
-
-/**
- * Fold conversation history into a single flattened prompt and send it.
- * The upstream API takes a single query string, so we serialise history
- * as labelled turns.
- */
 function buildHistoryPrompt(
   history: HistoryEntry[],
   newMessage: string,
@@ -50,13 +32,4 @@ export async function chatCompletionWithHistory(
   systemPrompt?: string
 ): Promise<string> {
   return aiQuery(buildHistoryPrompt(history, newMessage, systemPrompt));
-}
-
-export async function streamChatWithHistory(
-  history: HistoryEntry[],
-  newMessage: string,
-  onChunk: (chunk: string) => void,
-  systemPrompt?: string
-): Promise<string> {
-  return aiStream(buildHistoryPrompt(history, newMessage, systemPrompt), onChunk);
 }

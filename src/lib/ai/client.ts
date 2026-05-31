@@ -33,10 +33,16 @@ const BROWSER_HEADERS = {
 async function readBody(res: Response): Promise<string> {
   try {
     const text = await res.text();
-    return text.slice(0, 500); // cap for log noise
+    return text.slice(0, 1000);
   } catch {
     return "<unreadable body>";
   }
+}
+
+async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs = 120_000): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(id));
 }
 
 /**
@@ -53,7 +59,7 @@ export async function aiQuery(prompt: string): Promise<string> {
   const shouldUsePost = encoded.length > 1500;
 
   if (!shouldUsePost) {
-    const getRes = await fetch(`${url}?query=${encoded}`, {
+    const getRes = await fetchWithTimeout(`${url}?query=${encoded}`, {
       method: "GET",
       headers: {
         ...BROWSER_HEADERS,
@@ -77,7 +83,7 @@ export async function aiQuery(prompt: string): Promise<string> {
   }
 
   // POST fallback
-  const postRes = await fetch(url, {
+  const postRes = await fetchWithTimeout(url, {
     method: "POST",
     headers: {
       ...BROWSER_HEADERS,
@@ -94,23 +100,4 @@ export async function aiQuery(prompt: string): Promise<string> {
 
   const data = (await postRes.json()) as AIResponse | string;
   return pickResponseText(data);
-}
-
-/**
- * Streaming wrapper. Upstream returns the full response in one shot, so we
- * simulate streaming by emitting word-sized chunks. Keeps the chat UI smooth.
- */
-export async function aiStream(
-  prompt: string,
-  onChunk: (chunk: string) => void
-): Promise<string> {
-  const full = await aiQuery(prompt);
-  const words = full.split(/(\s+)/);
-  for (const word of words) {
-    if (word) {
-      onChunk(word);
-      await new Promise((r) => setTimeout(r, 12));
-    }
-  }
-  return full;
 }

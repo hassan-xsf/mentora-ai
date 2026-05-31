@@ -118,74 +118,25 @@ export async function generateRoadmap(
     { onConflict: "id", ignoreDuplicates: true }
   );
 
-  const prompt = `You are an expert curriculum designer creating a comprehensive learning roadmap for someone who wants to become a ${careerTitle}.
+  const prompt = `Generate a learning roadmap JSON for becoming a ${careerTitle}.
+Career context: ${careerDescription}
 
-CAREER CONTEXT:
-${careerDescription}
+Return ONLY valid JSON (no markdown, no explanation) matching this exact structure:
+{"title":"Become a ${careerTitle}","sections":[{"title":"Foundations","nodes":[{"title":"Topic","description":"2 sentences.","resources":[{"title":"r","type":"video","url":null},{"title":"r","type":"article","url":null},{"title":"r","type":"note","url":null}],"tasks":[{"title":"task"},{"title":"task"},{"title":"task"}]}]},{"title":"Intermediate","nodes":[...]},{"title":"Advanced","nodes":[...]}]}
 
-YOUR TASK: Generate a full 3-section roadmap with 4 nodes per section (12 nodes total).
-
-STRICT REQUIREMENTS:
-1. EXACTLY 3 sections with these EXACT titles in this EXACT order:
-   - "Foundations" (absolute beginner concepts)
-   - "Intermediate" (applied skills and real-world patterns)
-   - "Advanced" (expert-level specialisation and production concerns)
-
-2. EACH section MUST contain EXACTLY 4 nodes (12 nodes total — NEVER fewer)
-
-3. EACH node MUST have:
-   - title: specific topic name (NOT "Introduction to X" — pick a real, distinct concept)
-   - description: 2-3 sentences explaining what the learner will master
-   - resources: array of EXACTLY 3 items, each with {title, type, url}
-     - type MUST be one of: "video", "article", "note"
-     - url can be null
-   - tasks: array of EXACTLY 3 specific, actionable tasks
-
-4. Node titles must be DIFFERENT and progressively build on each other. Examples for a Software Engineer roadmap:
-   Foundations: "Variables & Data Types", "Control Flow & Loops", "Functions & Scope", "Arrays & Objects"
-   Intermediate: "REST APIs", "Database Modelling", "Authentication", "Error Handling Patterns"
-   Advanced: "System Design", "Caching Strategies", "Concurrency", "Production Observability"
-
-   DO NOT use generic titles like "Introduction" or "Getting Started". Pick concrete topics.
-
-OUTPUT FORMAT — return ONLY this JSON object:
-{
-  "title": "Become a ${careerTitle}",
-  "sections": [
-    {
-      "title": "Foundations",
-      "nodes": [
-        {
-          "title": "Concrete Topic Name",
-          "description": "Two to three sentence explanation of what they'll learn and why it matters.",
-          "resources": [
-            {"title": "Resource title", "type": "video", "url": null},
-            {"title": "Resource title", "type": "article", "url": null},
-            {"title": "Resource title", "type": "note", "url": null}
-          ],
-          "tasks": [
-            {"title": "Specific actionable task"},
-            {"title": "Specific actionable task"},
-            {"title": "Specific actionable task"}
-          ]
-        },
-        ... 3 more nodes ...
-      ]
-    },
-    ... 2 more sections (Intermediate, Advanced) with 4 nodes each ...
-  ]
-}
-
-CRITICAL OUTPUT RULES:
-- Return ONLY the raw JSON object. Start with { and end with }
-- NO markdown code fences. NO explanations before or after.
-- ALL 3 sections MUST be present. ALL 4 nodes per section MUST be present.`;
+Rules:
+- 3 sections: Foundations, Intermediate, Advanced
+- 4 nodes per section (12 total)
+- Each node: title (specific concept, not "Introduction"), description (2 sentences), 3 resources (one each of video/article/note, url:null), 3 tasks
+- Output raw JSON only, starting with { and ending with }`;
 
   let roadmapData: GeneratedRoadmap;
   let usedFallback = false;
 
   try {
     const raw = await chatCompletion(prompt);
+    console.log("[generate-roadmap] raw AI response length:", raw.length);
+    console.log("[generate-roadmap] raw AI response (first 2000):", raw.slice(0, 2000));
     const cleaned = extractJSON(raw);
     roadmapData = JSON.parse(cleaned) as GeneratedRoadmap;
 

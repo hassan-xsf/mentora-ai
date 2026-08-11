@@ -20,6 +20,8 @@ type RoadmapNode = {
   description: string;
   resources: RoadmapResource[];
   tasks: RoadmapTask[];
+  /** Optional sub-topics that branch off this trunk node (e.g. npm/yarn/pnpm off "Package Managers"). */
+  children?: RoadmapNode[];
 };
 
 type RoadmapSection = {
@@ -32,20 +34,30 @@ type GeneratedRoadmap = {
   sections: RoadmapSection[];
 };
 
+function normalizeNode(node: RoadmapNode): RoadmapNode {
+  return {
+    ...node,
+    tasks: (node.tasks ?? [])
+      .map((t) => (typeof t === "string" ? { title: t } : t))
+      .filter((t) => t.title),
+    resources: (node.resources ?? [])
+      .map((r): RoadmapResource =>
+        typeof r === "string" ? { title: r, type: "note", url: null } : r
+      )
+      .filter((r) => r.title),
+    // Recurse one level; children never carry grandchildren (tree is trunk + branches).
+    children: (node.children ?? [])
+      .map((c) => ({ ...normalizeNode(c), children: undefined }))
+      .filter((c) => c.title),
+  };
+}
+
 function normalizeRoadmap(data: GeneratedRoadmap): GeneratedRoadmap {
   return {
     ...data,
     sections: (data.sections ?? []).map((section) => ({
       ...section,
-      nodes: (section.nodes ?? []).map((node) => ({
-        ...node,
-        tasks: (node.tasks ?? []).map((t) =>
-          typeof t === "string" ? { title: t } : t
-        ).filter((t) => t.title),
-        resources: (node.resources ?? []).map((r): RoadmapResource =>
-          typeof r === "string" ? { title: r, type: "note", url: null } : r
-        ).filter((r) => r.title),
-      })),
+      nodes: (section.nodes ?? []).map(normalizeNode),
     })),
   };
 }
@@ -104,7 +116,7 @@ function buildFallbackRoadmap(careerTitle: string): GeneratedRoadmap {
     title: `Become a ${careerTitle}`,
     sections: sections.map((s) => ({
       title: s.title,
-      nodes: s.nodeTitles.map((title) => ({
+      nodes: s.nodeTitles.map((title, idx) => ({
         title,
         description: `Learn ${title.toLowerCase()} as a ${careerTitle}. Build practical understanding through guided study and hands-on practice.`,
         resources: [
@@ -117,9 +129,84 @@ function buildFallbackRoadmap(careerTitle: string): GeneratedRoadmap {
           { title: `Build a small example demonstrating ${title.toLowerCase()}` },
           { title: `Explain ${title.toLowerCase()} in your own words` },
         ],
+        // Give roughly half the trunk nodes a couple of branch sub-topics so the
+        // fallback roadmap still renders as a tree rather than a flat list.
+        children:
+          idx % 2 === 0
+            ? [`Core approach`, `Common tools`, `Best practices`].map((sub) => ({
+                title: `${sub}: ${title}`,
+                description: `Explore ${sub.toLowerCase()} within ${title.toLowerCase()}.`,
+                resources: [
+                  { title: `${sub} — guide`, type: "article" as const, url: undefined },
+                ],
+                tasks: [{ title: `Practice ${sub.toLowerCase()} for ${title.toLowerCase()}` }],
+              }))
+            : undefined,
       })),
     })),
   };
+}
+
+/**
+ * Insert a single node (trunk or branch) plus its resources and tasks.
+ * Returns the created node id, or null if the insert failed.
+ */
+async function insertNode(
+  adminSupabase: ReturnType<typeof createAdminClient>,
+  args: {
+    roadmapId: string;
+    nodeData: RoadmapNode;
+    position: number;
+    sectionIndex: number;
+    parentId: string | null;
+    branchSide: "left" | "right" | null;
+  }
+): Promise<{ id: string } | null> {
+  const { roadmapId, nodeData, position, sectionIndex, parentId, branchSide } = args;
+
+  const { data: node, error: nodeError } = await adminSupabase
+    .from("nodes")
+    .insert({
+      roadmap_id: roadmapId,
+      title: nodeData.title,
+      description: nodeData.description,
+      position,
+      section_index: sectionIndex,
+      parent_id: parentId,
+      branch_side: branchSide,
+    })
+    .select("id")
+    .single();
+
+  if (nodeError || !node) {
+    console.error("[generate-roadmap] Node insert error:", nodeError);
+    return null;
+  }
+
+  if (nodeData.resources && nodeData.resources.length > 0) {
+    const resourcesToInsert = nodeData.resources.map((r) => ({
+      node_id: node.id,
+      title: r.title,
+      type: (["video", "article", "note"].includes(r.type) ? r.type : "article") as
+        | "video"
+        | "article"
+        | "note",
+      url: r.url ?? null,
+      content: null,
+    }));
+    await adminSupabase.from("resources").insert(resourcesToInsert);
+  }
+
+  if (nodeData.tasks && nodeData.tasks.length > 0) {
+    const tasksToInsert = nodeData.tasks.map((t, tIdx) => ({
+      node_id: node.id,
+      title: t.title,
+      position: tIdx,
+    }));
+    await adminSupabase.from("node_tasks").insert(tasksToInsert);
+  }
+
+  return node;
 }
 
 export async function generateRoadmap(
@@ -140,12 +227,14 @@ export async function generateRoadmap(
 Career context: ${careerDescription}
 
 Return ONLY valid JSON (no markdown, no explanation) matching this exact structure:
-{"title":"Become a ${careerTitle}","sections":[{"title":"Foundations","nodes":[{"title":"Topic","description":"2 sentences.","resources":[{"title":"r","type":"video","url":null},{"title":"r","type":"article","url":null},{"title":"r","type":"note","url":null}],"tasks":[{"title":"task"},{"title":"task"},{"title":"task"}]}]},{"title":"Intermediate","nodes":[...]},{"title":"Advanced","nodes":[...]}]}
+{"title":"Become a ${careerTitle}","sections":[{"title":"Foundations","nodes":[{"title":"Topic","description":"2 sentences.","resources":[{"title":"r","type":"video","url":null},{"title":"r","type":"article","url":null},{"title":"r","type":"note","url":null}],"tasks":[{"title":"task"},{"title":"task"},{"title":"task"}],"children":[{"title":"Sub-topic","description":"1 sentence.","resources":[{"title":"r","type":"article","url":null}],"tasks":[{"title":"task"}]}]}]},{"title":"Intermediate","nodes":[...]},{"title":"Advanced","nodes":[...]}]}
 
 Rules:
 - 3 sections: Foundations, Intermediate, Advanced
-- 4 nodes per section (12 total)
-- Each node: title (specific concept, not "Introduction"), description (2 sentences), 3 resources (one each of video/article/note, url:null), 3 tasks
+- 4 nodes per section (12 trunk nodes total). These are the main path.
+- Each trunk node: title (specific concept, not "Introduction"), description (2 sentences), 3 resources (one each of video/article/note, url:null), 3 tasks
+- IMPORTANT: For nodes that naturally split into concrete choices/tools, add a "children" array of 2-4 sub-topics that branch off it (e.g. a "Package Managers" node has children npm, yarn, pnpm; a "Frameworks" node has children React, Vue, Angular). Not every node needs children — only where it makes sense. Aim for children on roughly half the trunk nodes.
+- Each child: title, short description (1 sentence), 1-2 resources, 1-2 tasks. Children do NOT have their own children.
 - Output raw JSON only, starting with { and ending with }`;
 
   let roadmapData: GeneratedRoadmap;
@@ -205,43 +294,29 @@ Rules:
     for (let nodeIdx = 0; nodeIdx < section.nodes.length; nodeIdx++) {
       const nodeData = section.nodes[nodeIdx];
 
-      const { data: node, error: nodeError } = await adminSupabase
-        .from("nodes")
-        .insert({
-          roadmap_id: roadmapId,
-          title: nodeData.title,
-          description: nodeData.description,
-          position: nodeIdx,
-          section_index: sectionIdx,
-        })
-        .select("id")
-        .single();
+      // Insert the trunk node (parent_id null), then its branch children.
+      const trunk = await insertNode(adminSupabase, {
+        roadmapId,
+        nodeData,
+        position: nodeIdx,
+        sectionIndex: sectionIdx,
+        parentId: null,
+        branchSide: null,
+      });
 
-      if (nodeError || !node) {
-        console.error("[generate-roadmap] Node insert error:", nodeError);
-        continue;
-      }
+      if (!trunk) continue;
 
-      // Insert resources
-      if (nodeData.resources && nodeData.resources.length > 0) {
-        const resourcesToInsert = nodeData.resources.map((r) => ({
-          node_id: node.id,
-          title: r.title,
-          type: (["video", "article", "note"].includes(r.type) ? r.type : "article") as "video" | "article" | "note",
-          url: r.url ?? null,
-          content: null,
-        }));
-        await adminSupabase.from("resources").insert(resourcesToInsert);
-      }
-
-      // Insert tasks
-      if (nodeData.tasks && nodeData.tasks.length > 0) {
-        const tasksToInsert = nodeData.tasks.map((t, tIdx) => ({
-          node_id: node.id,
-          title: t.title,
-          position: tIdx,
-        }));
-        await adminSupabase.from("node_tasks").insert(tasksToInsert);
+      // Insert children as branches, alternating sides so the tree balances.
+      const children = nodeData.children ?? [];
+      for (let childIdx = 0; childIdx < children.length; childIdx++) {
+        await insertNode(adminSupabase, {
+          roadmapId,
+          nodeData: children[childIdx],
+          position: childIdx,
+          sectionIndex: sectionIdx,
+          parentId: trunk.id,
+          branchSide: childIdx % 2 === 0 ? "right" : "left",
+        });
       }
     }
 

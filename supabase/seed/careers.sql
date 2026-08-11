@@ -7,7 +7,22 @@ insert into careers (title, description, demand_indicator, salary_min, salary_ma
   ('Cybersecurity Analyst', 'Protect organizational systems and data by monitoring threats, conducting vulnerability assessments, and implementing security measures. Work with SIEM tools and incident response.', 'High', 80000, 145000, 'USD'),
   ('Product Manager', 'Define product vision, prioritize features, and coordinate cross-functional teams to deliver products that meet user needs and business objectives. Bridge technical and business worlds.', 'Medium', 90000, 160000, 'USD'),
   ('AI/ML Engineer', 'Build and deploy machine learning models and AI systems at scale. Work on model training, optimization, MLOps pipelines, and integrating AI capabilities into production applications.', 'High', 110000, 185000, 'USD'),
-  ('Full Stack Developer', 'Build complete web applications from frontend interfaces to backend APIs and databases. Proficient in both client-side and server-side technologies across the full development stack.', 'High', 80000, 150000, 'USD');
+  ('Full Stack Developer', 'Build complete web applications from frontend interfaces to backend APIs and databases. Proficient in both client-side and server-side technologies across the full development stack.', 'High', 80000, 150000, 'USD'),
+  ('Registered Nurse', 'Provide direct patient care, administer treatments, and coordinate with physicians in hospitals, clinics, and community health settings. Requires strong clinical judgment and compassion.', 'High', 65000, 105000, 'USD'),
+  ('Financial Analyst', 'Evaluate financial data, build models, and advise on investment decisions, budgeting, and forecasting for businesses or individual clients. Strong grounding in accounting and markets.', 'Medium', 65000, 120000, 'USD'),
+  ('Mechanical Engineer', 'Design, analyze, and test mechanical systems and devices, from consumer products to industrial machinery. Combines physics, materials science, and CAD tooling.', 'Medium', 70000, 125000, 'USD'),
+  ('Elementary School Teacher', 'Plan and deliver lessons, assess student progress, and foster a supportive classroom environment for young learners. Requires strong communication and patience.', 'Medium', 45000, 70000, 'USD'),
+  ('Marketing Manager', 'Develop and execute marketing strategy across digital and traditional channels, manage campaigns, and analyze performance to grow brand awareness and revenue.', 'Medium', 65000, 130000, 'USD'),
+  ('Civil Engineer', 'Plan, design, and oversee construction of infrastructure such as roads, bridges, and buildings, ensuring safety and regulatory compliance.', 'Medium', 68000, 120000, 'USD'),
+  ('Graphic Designer', 'Create visual concepts for branding, marketing materials, and digital media using design software, balancing creativity with client and business goals.', 'Medium', 45000, 85000, 'USD'),
+  ('Human Resources Manager', 'Oversee recruitment, employee relations, compensation, and workplace policy to support organizational culture and compliance.', 'Medium', 60000, 115000, 'USD'),
+  ('Environmental Scientist', 'Study ecosystems, assess environmental impact, and develop strategies for sustainability and regulatory compliance across industries.', 'Medium', 55000, 100000, 'USD'),
+  ('Physical Therapist', 'Diagnose and treat movement dysfunction, helping patients recover from injury or manage chronic conditions through hands-on therapy and exercise plans.', 'High', 75000, 110000, 'USD'),
+  ('Chef / Culinary Professional', 'Design menus, manage kitchen operations, and prepare dishes in restaurants, hotels, or catering businesses, blending creativity with operational discipline.', 'Medium', 40000, 90000, 'USD'),
+  ('Lawyer', 'Advise clients and represent them in legal matters, ranging from corporate transactions to litigation, requiring rigorous research and argumentation skills.', 'Medium', 75000, 190000, 'USD'),
+  ('Architect', 'Design buildings and spaces that balance aesthetics, function, and safety, working closely with clients, engineers, and construction teams.', 'Medium', 65000, 130000, 'USD'),
+  ('Social Worker', 'Support individuals and families facing hardship by connecting them with resources, counseling, and advocacy within community or clinical settings.', 'Medium', 45000, 75000, 'USD'),
+  ('Supply Chain Manager', 'Coordinate procurement, logistics, and inventory to ensure efficient flow of goods from suppliers to customers, optimizing cost and reliability.', 'Medium', 65000, 125000, 'USD');
 
 -- Seed assessment questions
 insert into assessment_questions (question, type, options, position) values

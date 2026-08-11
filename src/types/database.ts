@@ -139,6 +139,8 @@ export type Database = {
           description: string;
           position: number;
           section_index: number;
+          parent_id: string | null;
+          branch_side: "left" | "right" | null;
         };
         Insert: {
           id?: string;
@@ -147,6 +149,8 @@ export type Database = {
           description?: string;
           position?: number;
           section_index?: number;
+          parent_id?: string | null;
+          branch_side?: "left" | "right" | null;
         };
         Update: {
           id?: string;
@@ -155,6 +159,8 @@ export type Database = {
           description?: string;
           position?: number;
           section_index?: number;
+          parent_id?: string | null;
+          branch_side?: "left" | "right" | null;
         };
         Relationships: Relationships;
       };

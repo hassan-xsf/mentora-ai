@@ -24,6 +24,8 @@ export type FullNode = {
   description: string;
   position: number;
   section_index: number;
+  parent_id: string | null;
+  branch_side: "left" | "right" | null;
   is_completed: boolean;
   resources: {
     id: string;

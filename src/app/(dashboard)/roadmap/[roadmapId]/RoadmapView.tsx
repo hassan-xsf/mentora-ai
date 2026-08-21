@@ -274,13 +274,16 @@ export default function RoadmapView({
 /*  Tree canvas — central trunk + left/right branches with SVG curves  */
 /* ------------------------------------------------------------------ */
 
-const CARD_W = 232;
-const TRUNK_GAP = 40; // gap between the center spine and a branch card
-const TOP_PAD = 20; // padding above the first trunk node
-const ROW_PAD = 48; // vertical breathing room added to each trunk row
-const TRUNK_CARD_H = 96; // approx rendered height of a trunk card
-const CHILD_CARD_H = 60; // approx rendered height of a branch card
-const CHILD_STEP = 66; // vertical distance between stacked branch cards
+const VB_W = 860; // svg/logical canvas width
+const CX = VB_W / 2; // center spine x
+const TRUNK_CARD_W = 240; // trunk card width
+const CHILD_CARD_W = 196; // branch card width
+const SPINE_GAP = 26; // gap between the spine and the nearest card edge
+const TOP_PAD = 24; // padding above the first trunk node
+const ROW_PAD = 52; // vertical breathing room added to each trunk row
+const TRUNK_CARD_H = 104; // approx rendered height of a trunk card
+const CHILD_CARD_H = 62; // approx rendered height of a branch card
+const CHILD_STEP = 74; // vertical distance between stacked branch cards
 
 function TreeCanvas({
   tree,
@@ -291,12 +294,6 @@ function TreeCanvas({
   stateOf: (n: FullNode) => NodeState;
   onSelect: (n: FullNode) => void;
 }) {
-  // Fixed numeric coordinate space. preserveAspectRatio="none" stretches this
-  // viewBox to the container width, so CX always lands at the visual center and
-  // ±px offsets stay pixel-accurate against the HTML card layer's calc().
-  const VB_W = 760;
-  const CX = VB_W / 2;
-
   // Pre-compute each trunk node's center-Y. Rows with more children need more
   // vertical room so the fanned-out cluster doesn't overlap the next trunk node.
   const rows = useMemo(() => {
@@ -310,7 +307,7 @@ function TreeCanvas({
       const rowH = Math.max(TRUNK_CARD_H, clusterH) + ROW_PAD;
       const prevBottom = acc.length > 0 ? acc[acc.length - 1].bottom : TOP_PAD;
       const cy = prevBottom + rowH / 2;
-      // Children alternate sides per trunk row so the tree stays balanced.
+      // Branches alternate sides per trunk row so the whole tree stays balanced.
       const branchSide: "left" | "right" = i % 2 === 0 ? "right" : "left";
       acc.push({ t, cy, branchSide, bottom: prevBottom + rowH });
       return acc;
@@ -320,9 +317,12 @@ function TreeCanvas({
   const height =
     rows.length > 0 ? rows[rows.length - 1].cy + TRUNK_CARD_H / 2 + TOP_PAD : TOP_PAD * 2;
 
+  // Near edge (from the spine) where a card begins on a given side.
+  const cardEdgeX = (dir: number) => CX + dir * SPINE_GAP;
+
   return (
     <div className="relative w-full overflow-x-auto">
-      <div className="relative mx-auto" style={{ minWidth: VB_W, height }}>
+      <div className="relative mx-auto" style={{ width: VB_W, height }}>
         {/* SVG connector layer */}
         <svg
           className="pointer-events-none absolute inset-0 h-full w-full"
@@ -331,25 +331,32 @@ function TreeCanvas({
           aria-hidden
         >
           {/* Central trunk line */}
-          <line x1={CX} y1={rows[0]?.cy ?? 0} x2={CX} y2={rows[rows.length - 1]?.cy ?? height} stroke="#d3cec6" strokeWidth="2.5" />
+          <line
+            x1={CX}
+            y1={rows[0]?.cy ?? 0}
+            x2={CX}
+            y2={rows[rows.length - 1]?.cy ?? height}
+            stroke="#d3cec6"
+            strokeWidth="2.5"
+          />
 
           {rows.map(({ t, cy, branchSide }) => {
             const st = stateOf(t.node);
-            const dir = branchSide === "right" ? 1 : -1;
+            const dir = branchSide === "right" ? 1 : -1; // branch direction
             const total = t.children.length;
             return (
               <g key={t.node.id}>
-                {/* Branch connectors — curve from trunk out to each child */}
+                {/* Branch connectors — S-curve from spine to each child's near edge */}
                 {t.children.map((child, ci) => {
                   const cst = stateOf(child);
                   const targetY = cy + (ci - (total - 1) / 2) * CHILD_STEP;
-                  const startX = CX + dir * 4;
-                  const ctrlX = CX + dir * 34;
-                  const endX = CX + dir * (TRUNK_GAP + 4);
+                  const startX = CX;
+                  const endX = cardEdgeX(dir);
+                  const midX = (startX + endX) / 2;
                   return (
                     <path
                       key={child.id}
-                      d={`M ${startX} ${cy} C ${ctrlX} ${cy}, ${ctrlX} ${targetY}, ${endX} ${targetY}`}
+                      d={`M ${startX} ${cy} C ${midX} ${cy}, ${midX} ${targetY}, ${endX} ${targetY}`}
                       stroke={STATE[cst].stroke}
                       strokeWidth="2"
                       fill="none"
@@ -358,7 +365,7 @@ function TreeCanvas({
                     />
                   );
                 })}
-                {/* Station dot on the centered trunk */}
+                {/* Station dot on the spine */}
                 <circle cx={CX} cy={cy} r="7" fill="#fff" stroke={STATE[st].stroke} strokeWidth="3" vectorEffect="non-scaling-stroke" />
                 {st === "completed" && <circle cx={CX} cy={cy} r="3.2" fill={STATE[st].stroke} />}
               </g>
@@ -366,20 +373,32 @@ function TreeCanvas({
           })}
         </svg>
 
-        {/* Node cards layer — mirrors the SVG layer's geometry */}
+        {/* Node cards layer — mirrors the SVG geometry exactly */}
         {rows.map(({ t, cy, branchSide }) => {
           const total = t.children.length;
+          // Trunk card sits on the side OPPOSITE its branches so the two clusters
+          // never share horizontal space. SPINE_GAP as a % of the logical width
+          // keeps the HTML layer aligned with the stretched SVG viewBox.
+          const gapPct = (SPINE_GAP / VB_W) * 100;
+          const trunkOnLeft = branchSide === "right";
           return (
             <div key={t.node.id}>
-              {/* Trunk card — centered on the spine */}
+              {/* Trunk card — hugs the spine on the opposite side of its branches */}
               <div
-                className="absolute left-1/2"
-                style={{ top: cy, transform: "translate(-50%, -50%)", width: CARD_W }}
+                className="absolute"
+                style={{
+                  top: cy,
+                  transform: "translateY(-50%)",
+                  ...(trunkOnLeft
+                    ? { right: `calc(50% + ${gapPct}%)` }
+                    : { left: `calc(50% + ${gapPct}%)` }),
+                  width: TRUNK_CARD_W,
+                }}
               >
                 <NodeCard node={t.node} state={stateOf(t.node)} trunk onSelect={onSelect} />
               </div>
 
-              {/* Branch cards — clustered on one side of the trunk */}
+              {/* Branch cards — clustered on the branch side, hugging the spine */}
               {t.children.map((child, ci) => {
                 const offsetY = (ci - (total - 1) / 2) * CHILD_STEP;
                 return (
@@ -390,9 +409,9 @@ function TreeCanvas({
                       top: cy + offsetY,
                       transform: "translateY(-50%)",
                       ...(branchSide === "left"
-                        ? { right: `calc(50% + ${TRUNK_GAP + 6}px)` }
-                        : { left: `calc(50% + ${TRUNK_GAP + 6}px)` }),
-                      width: CARD_W - 28,
+                        ? { right: `calc(50% + ${gapPct}%)` }
+                        : { left: `calc(50% + ${gapPct}%)` }),
+                      width: CHILD_CARD_W,
                     }}
                   >
                     <NodeCard node={child} state={stateOf(child)} onSelect={onSelect} />

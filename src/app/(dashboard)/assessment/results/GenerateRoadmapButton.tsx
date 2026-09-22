@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { generateRoadmap } from "@/app/actions/generate-roadmap";
+import { CREDIT_COSTS } from "@/lib/credits/config";
 
 type Props = {
   careerTitle: string;
@@ -101,6 +102,9 @@ export default function GenerateRoadmapButton({ careerTitle, careerDescription }
       ) : (
         <>
           <span>Generate Roadmap</span>
+          <span className="text-[11px] opacity-70">
+            {CREDIT_COSTS.generate_roadmap} credits
+          </span>
           <span aria-hidden>→</span>
         </>
       )}

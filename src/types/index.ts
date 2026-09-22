@@ -153,6 +153,41 @@ export type Badge = {
   awarded_at: string;
 };
 
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+export type NotificationType =
+  | "certificate"
+  | "milestone"
+  | "badge"
+  | "credits"
+  | "system";
+
+export type Notification = {
+  id: string;
+  student_id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  href: string | null;
+  is_read: boolean;
+  created_at: string;
+};
+
+// ─── Certificates ─────────────────────────────────────────────────────────────
+
+export type CertificateLevel = "Beginner" | "Intermediate" | "Advanced";
+
+export type Certificate = {
+  id: string;
+  student_id: string;
+  roadmap_id: string;
+  code: string;
+  title: string;
+  level: CertificateLevel;
+  recipient_name: string;
+  issued_at: string;
+};
+
 // ─── Progress ─────────────────────────────────────────────────────────────────
 
 export type ProgressRecord = {
@@ -182,5 +217,7 @@ export type AssessmentQuestion = {
 
 export type AssessmentAnswer = {
   question_id: string;
+  /** The question text, so the model sees what was actually asked. */
+  question?: string;
   answer: string | string[];
 };

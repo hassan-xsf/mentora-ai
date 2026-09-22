@@ -28,12 +28,43 @@ const sidebarLinks = [
     ),
   },
   {
+    href: "/build",
+    label: "What to Build",
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+        <circle cx="3" cy="3.5" r="2" stroke="currentColor" strokeWidth="1.2" />
+        <circle cx="12" cy="3.5" r="2" stroke="currentColor" strokeWidth="1.2" />
+        <circle cx="7.5" cy="11.5" r="2" stroke="currentColor" strokeWidth="1.2" />
+        <path d="M4.3 5L6.7 9.9M10.7 5L8.3 9.9M5 3.5h5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
     href: "/practice",
     label: "Practice",
     icon: (
       <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
         <rect x="1" y="3" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
         <path d="M4 7h2M9 7h2M7 5v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    href: "/pricing",
+    label: "Pricing",
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+        <path d="M7.5 1.5v12M10.5 4H6a1.75 1.75 0 100 3.5h3a1.75 1.75 0 110 3.5H4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    href: "/certificates",
+    label: "Certificates",
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+        <circle cx="7.5" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2" />
+        <path d="M5 9.5L4 14l3.5-1.8L11 14l-1-4.5" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
       </svg>
     ),
   },

@@ -1,5 +1,13 @@
 // Supabase database types generated from schema
 
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
+
 type Relationships = {
   foreignKeyName: string;
   columns: string[];
@@ -19,6 +27,7 @@ export type Database = {
           avatar_url: string | null;
           xp_total: number;
           streak_count: number;
+          credits: number;
           last_active_date: string | null;
           created_at: string;
         };
@@ -29,6 +38,7 @@ export type Database = {
           avatar_url?: string | null;
           xp_total?: number;
           streak_count?: number;
+          credits?: number;
           last_active_date?: string | null;
           created_at?: string;
         };
@@ -39,6 +49,7 @@ export type Database = {
           avatar_url?: string | null;
           xp_total?: number;
           streak_count?: number;
+          credits?: number;
           last_active_date?: string | null;
           created_at?: string;
         };
@@ -473,9 +484,169 @@ export type Database = {
         };
         Relationships: Relationships;
       };
+      credit_transactions: {
+        Row: {
+          id: string;
+          student_id: string;
+          amount: number;
+          reason: string;
+          balance_after: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          student_id: string;
+          amount: number;
+          reason: string;
+          balance_after: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          student_id?: string;
+          amount?: number;
+          reason?: string;
+          balance_after?: number;
+          created_at?: string;
+        };
+        Relationships: Relationships;
+      };
+      notifications: {
+        Row: {
+          id: string;
+          student_id: string;
+          type: string;
+          title: string;
+          body: string;
+          href: string | null;
+          is_read: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          student_id: string;
+          type?: string;
+          title: string;
+          body?: string;
+          href?: string | null;
+          is_read?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          student_id?: string;
+          type?: string;
+          title?: string;
+          body?: string;
+          href?: string | null;
+          is_read?: boolean;
+          created_at?: string;
+        };
+        Relationships: Relationships;
+      };
+      certificates: {
+        Row: {
+          id: string;
+          student_id: string;
+          roadmap_id: string;
+          code: string;
+          title: string;
+          level: string;
+          recipient_name: string;
+          issued_at: string;
+        };
+        Insert: {
+          id?: string;
+          student_id: string;
+          roadmap_id: string;
+          code: string;
+          title: string;
+          level?: string;
+          recipient_name: string;
+          issued_at?: string;
+        };
+        Update: {
+          id?: string;
+          student_id?: string;
+          roadmap_id?: string;
+          code?: string;
+          title?: string;
+          level?: string;
+          recipient_name?: string;
+          issued_at?: string;
+        };
+        Relationships: Relationships;
+      };
+      project_blueprints: {
+        Row: {
+          id: string;
+          student_id: string;
+          title: string;
+          tagline: string;
+          inputs: Json;
+          graph: Json;
+          used_fallback: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          student_id: string;
+          title: string;
+          tagline?: string;
+          inputs?: Json;
+          graph?: Json;
+          used_fallback?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          student_id?: string;
+          title?: string;
+          tagline?: string;
+          inputs?: Json;
+          graph?: Json;
+          used_fallback?: boolean;
+          created_at?: string;
+        };
+        Relationships: Relationships;
+      };
+      blueprint_node_completions: {
+        Row: {
+          blueprint_id: string;
+          student_id: string;
+          node_key: string;
+          is_completed: boolean;
+          completed_at: string;
+        };
+        Insert: {
+          blueprint_id: string;
+          student_id: string;
+          node_key: string;
+          is_completed?: boolean;
+          completed_at?: string;
+        };
+        Update: {
+          blueprint_id?: string;
+          student_id?: string;
+          node_key?: string;
+          is_completed?: boolean;
+          completed_at?: string;
+        };
+        Relationships: Relationships;
+      };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      spend_credits: {
+        Args: { p_student_id: string; p_amount: number; p_reason: string };
+        // null when the student cannot afford the charge
+        Returns: number | null;
+      };
+      add_credits: {
+        Args: { p_student_id: string; p_amount: number; p_reason: string };
+        Returns: number | null;
+      };
+    };
     Enums: Record<string, never>;
   };
 };

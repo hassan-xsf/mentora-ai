@@ -1,9 +1,11 @@
 "use server";
 
 import { chatCompletion } from "@/lib/ai/stream";
+import { extractJSON } from "@/lib/ai/json";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/auth/session";
+import { spendCredits, refundCredits } from "@/lib/credits/credits";
 
 type RoadmapResource = {
   title: string;
@@ -60,25 +62,6 @@ function normalizeRoadmap(data: GeneratedRoadmap): GeneratedRoadmap {
       nodes: (section.nodes ?? []).map(normalizeNode),
     })),
   };
-}
-
-function extractJSON(raw: string): string {
-  let cleaned = raw
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```\s*$/, "")
-    .trim();
-
-  const firstObj = cleaned.indexOf("{");
-  const firstArr = cleaned.indexOf("[");
-  const candidates = [firstObj, firstArr].filter((i) => i !== -1);
-  const first = candidates.length > 0 ? Math.min(...candidates) : -1;
-
-  const last = Math.max(cleaned.lastIndexOf("}"), cleaned.lastIndexOf("]"));
-
-  if (first !== -1 && last > first) {
-    cleaned = cleaned.slice(first, last + 1);
-  }
-  return cleaned;
 }
 
 function buildFallbackRoadmap(careerTitle: string): GeneratedRoadmap {
@@ -223,19 +206,36 @@ export async function generateRoadmap(
     { onConflict: "id", ignoreDuplicates: true }
   );
 
-  const prompt = `Generate a learning roadmap JSON for becoming a ${careerTitle}.
+  // Charge before doing any AI work; refunded below if we fail to persist.
+  await spendCredits(user.id, "generate_roadmap");
+
+  const prompt = `You are a senior ${careerTitle} designing the learning roadmap you wish you had been given. Produce it as JSON.
+
 Career context: ${careerDescription}
 
 Return ONLY valid JSON (no markdown, no explanation) matching this exact structure:
-{"title":"Become a ${careerTitle}","sections":[{"title":"Foundations","nodes":[{"title":"Topic","description":"2 sentences.","resources":[{"title":"r","type":"video","url":null},{"title":"r","type":"article","url":null},{"title":"r","type":"note","url":null}],"tasks":[{"title":"task"},{"title":"task"},{"title":"task"}],"children":[{"title":"Sub-topic","description":"1 sentence.","resources":[{"title":"r","type":"article","url":null}],"tasks":[{"title":"task"}]}]}]},{"title":"Intermediate","nodes":[...]},{"title":"Advanced","nodes":[...]}]}
+{"title":"Become a ${careerTitle}","sections":[{"title":"Foundations","nodes":[{"title":"Topic","description":"2 sentences.","resources":[{"title":"Exact resource name — Author or site","type":"video","url":"https://..."},{"title":"...","type":"article","url":"https://..."},{"title":"...","type":"note","url":null}],"tasks":[{"title":"task"},{"title":"task"},{"title":"task"}],"children":[{"title":"Sub-topic","description":"1 sentence.","resources":[{"title":"...","type":"article","url":"https://..."}],"tasks":[{"title":"task"}]}]}]},{"title":"Intermediate","nodes":[...]},{"title":"Advanced","nodes":[...]}]}
 
-Rules:
-- 3 sections: Foundations, Intermediate, Advanced
-- 4 nodes per section (12 trunk nodes total). These are the main path.
-- Each trunk node: title (specific concept, not "Introduction"), description (2 sentences), 3 resources (one each of video/article/note, url:null), 3 tasks
-- IMPORTANT: For nodes that naturally split into concrete choices/tools, add a "children" array of 2-4 sub-topics that branch off it (e.g. a "Package Managers" node has children npm, yarn, pnpm; a "Frameworks" node has children React, Vue, Angular). Not every node needs children — only where it makes sense. Aim for children on roughly half the trunk nodes.
-- Each child: title, short description (1 sentence), 1-2 resources, 1-2 tasks. Children do NOT have their own children.
-- Output raw JSON only, starting with { and ending with }`;
+STRUCTURE
+- Exactly 3 sections: Foundations, Intermediate, Advanced.
+- 4 trunk nodes per section (12 total) — the main path, in strict dependency order: nothing depends on something taught later.
+- Node titles name a specific skill or concept ("HTTP Requests and Status Codes", "Indexing and Query Plans"). Never "Introduction", "Basics", "Getting Started", "Advanced Topics".
+- Description: 2 sentences — what it is, and why it matters for this specific career.
+- Children: for nodes that split into concrete competing tools or sub-skills, add 2-4 children (e.g. "Package Managers" → npm, pnpm, yarn; "Deployment" → Vercel, Docker, CI pipelines). Only where it makes sense — roughly half the trunk nodes. Children have title, 1-sentence description, 1-2 resources, 1-2 tasks, and no children of their own.
+
+RESOURCES — this is the part most roadmaps get wrong, so be strict
+- Each trunk node gets 3-4 resources. Include at least one video and at least one article. A "note" type is a short written summary you author yourself — for notes, set url to null.
+- Name REAL, well-known resources that actually exist and are widely recommended for this topic: official documentation (MDN, the language/framework docs), a named free course or YouTube series with its creator ("The Net Ninja", "freeCodeCamp", "3Blue1Brown", "CS50"), a specific well-known book with its author, or a canonical article.
+- Put the real URL in "url" when you are confident of it — official docs domains, freecodecamp.org, developer.mozilla.org, a specific YouTube channel, a book's publisher page. If you are NOT confident the exact URL is correct, set url to null and keep the precise title so the learner can search it. Never invent a URL that looks plausible but may not exist, and never link to a generic homepage as if it were the lesson.
+- Prefer free resources. Mark paid ones in the title, e.g. "(paid)".
+- Every resource title must be searchable on its own — "Official React docs: useEffect" not "React guide".
+
+TASKS
+- 3 tasks per trunk node, each a concrete thing to BUILD or DO with a checkable result, not "read about X" or "understand X".
+- Good: "Build a CLI that reads a CSV and prints the top 10 rows by a column the user names." Bad: "Learn file handling."
+- At least one task per section should produce something portfolio-worthy.
+
+Output raw JSON only, starting with { and ending with }`;
 
   let roadmapData: GeneratedRoadmap;
   let usedFallback = false;
@@ -282,6 +282,8 @@ Rules:
 
   if (roadmapError || !roadmap) {
     console.error("[generate-roadmap] Supabase insert error:", roadmapError);
+    // Nothing was delivered — give the credits back.
+    await refundCredits(user.id, "generate_roadmap").catch(() => undefined);
     throw new Error(roadmapError?.message ?? "Failed to create roadmap");
   }
 

@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth/session";
+import { notify } from "@/lib/db/notifications";
 import type { MilestoneQuestion } from "@/types";
 
 type SubmitResult = {
@@ -70,6 +71,14 @@ export async function submitMilestoneTest(
         section_index: nextSectionIndex,
       },
       { onConflict: "student_id,roadmap_id,section_index" }
+    );
+
+    await notify(
+      user.id,
+      "milestone",
+      `Milestone passed — ${score}% 🎯`,
+      `"${test.title}" cleared. The next section is unlocked.`,
+      `/roadmap/${roadmapId}`
     );
   }
 

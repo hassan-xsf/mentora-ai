@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { chatCompletionWithHistory } from "@/lib/ai/stream";
 import { saveChatMessage } from "@/lib/db/chat";
+import { spendCredits, refundCredits, isInsufficientCredits } from "@/lib/credits/credits";
 
 const SYSTEM_PROMPT = `You are an AI educational assistant for students learning new career skills.
 You ONLY answer questions related to education, learning, programming, technology, career development, and academic topics.
@@ -55,6 +56,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
     }
 
+    try {
+      await spendCredits(user.id, "chat_message");
+    } catch (err) {
+      if (isInsufficientCredits(err)) {
+        return NextResponse.json({ error: err.message, code: err.code }, { status: 402 });
+      }
+      throw err;
+    }
+
     await saveChatMessage(user.id, "user", message);
 
     const contextualMessage = nodeContext
@@ -73,6 +83,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ reply: text });
     } catch (err) {
       console.error("[chat] AI error:", err);
+      await refundCredits(user.id, "chat_message").catch(() => undefined);
       const friendly = friendlyAIError(err);
       await saveChatMessage(user.id, "assistant", friendly).catch(() => undefined);
       // 200 with an error flag so the UI can render it inline as an assistant message

@@ -4,126 +4,268 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { AssessmentQuestion, AssessmentAnswer } from "@/types";
 
-const STATIC_QUESTIONS: AssessmentQuestion[] = [
+/**
+ * Core questions always asked (skill level, constraints, direction) plus a pool
+ * sampled per attempt, so a second assessment isn't the same 10 prompts again.
+ * Each question is written to produce a signal the career model can act on —
+ * evidence of what the student has actually done, not just what sounds appealing.
+ */
+const CORE_QUESTIONS: AssessmentQuestion[] = [
   {
-    id: "q1",
-    question: "What type of work excites you most?",
+    id: "coding_level",
+    question: "What is the most complex thing you have personally built with code?",
     type: "single_choice",
     options: [
-      "Building and creating new things",
-      "Analyzing data to find patterns",
-      "Designing intuitive user experiences",
-      "Solving security and infrastructure challenges",
+      "Nothing yet — I have not written code outside a tutorial",
+      "Small scripts or exercises that solve one problem",
+      "A working app or site I finished on my own",
+      "A multi-part project with a database, users, or an API",
+      "Something used by real people, or work I was paid for",
     ],
   },
   {
-    id: "q2",
-    question: "Which subjects do you enjoy most?",
+    id: "math_comfort",
+    question: "How far did you get with maths, and how did it feel?",
+    type: "single_choice",
+    options: [
+      "I avoid maths and want a path with as little as possible",
+      "I can handle it when it has a clear practical purpose",
+      "Comfortable with statistics and probability",
+      "Comfortable with calculus and linear algebra",
+      "Maths is a strength — proofs and theory are enjoyable",
+    ],
+  },
+  {
+    id: "energy_source",
+    question: "Which of these tasks would you happily do for a whole day?",
     type: "multi_choice",
     options: [
-      "Mathematics and Statistics",
-      "Computer Science and Programming",
-      "Design and Visual Arts",
-      "Psychology and Human Behavior",
-      "Business and Strategy",
+      "Chasing down why something is broken until it works",
+      "Making an interface look and feel exactly right",
+      "Digging through a messy dataset for the real story",
+      "Designing how parts of a large system fit together",
+      "Automating a boring manual process away",
+      "Talking to users and turning their needs into a plan",
+      "Breaking into something to prove it is not secure",
+      "Explaining a hard concept so others finally get it",
     ],
   },
   {
-    id: "q3",
-    question: "How comfortable are you with programming?",
-    type: "scale",
-    options: ["Complete beginner", "Some basics", "Intermediate", "Advanced", "Expert"],
+    id: "drain_source",
+    question: "Which of these would drain you fastest?",
+    type: "multi_choice",
+    options: [
+      "Long meetings and stakeholder alignment",
+      "Pixel-level visual polish",
+      "Heavy maths and statistics",
+      "Being on call for production incidents",
+      "Reading dense documentation and specifications",
+      "Repetitive, well-defined tasks with no ambiguity",
+      "Presenting and persuading in front of a group",
+    ],
   },
   {
-    id: "q4",
-    question: "What is your preferred working style?",
+    id: "time_commitment",
+    question: "Realistically, how many hours a week can you study?",
     type: "single_choice",
     options: [
-      "Working independently on deep technical problems",
-      "Collaborating closely with a team",
-      "A mix of solo and team work",
-      "Leading and coordinating others",
+      "Under 5 — I need a slow, steady path",
+      "5-10 hours alongside other commitments",
+      "10-20 hours, this is a serious focus",
+      "20+ hours, I am going at this full time",
     ],
   },
   {
-    id: "q5",
-    question: "Which best describes your career goal?",
+    id: "horizon",
+    question: "When do you need to be job-ready?",
     type: "single_choice",
     options: [
-      "High salary and financial stability",
-      "Making a creative impact",
-      "Solving challenging technical problems",
-      "Building products people love",
-      "Advancing cutting-edge technology",
+      "Within 6 months — fastest route to employable",
+      "About a year",
+      "2+ years, I am still studying",
+      "No deadline — depth matters more than speed",
     ],
   },
   {
-    id: "q6",
-    question: "How do you feel about working with data?",
-    type: "scale",
-    options: [
-      "Dislike it",
-      "Neutral",
-      "Enjoy basic analysis",
-      "Love working with data",
-      "Passionate about data science",
-    ],
-  },
-  {
-    id: "q7",
-    question: "What size company would you prefer?",
+    id: "learning_style",
+    question: "How do you actually learn best?",
     type: "single_choice",
     options: [
-      "Startup (1-50 people)",
-      "Mid-size company (50-500)",
-      "Large corporation (500+)",
-      "Remote/freelance",
-      "No preference",
+      "Building projects and looking things up as I hit them",
+      "Structured courses worked through in order",
+      "Reading documentation and books first, then applying",
+      "Video walkthroughs I can follow along with",
+      "Working through problem sets and challenges",
     ],
   },
   {
-    id: "q8",
-    question: "Which technical area interests you most?",
+    id: "motivation",
+    question: "What would make a job feel worth it five years in?",
     type: "single_choice",
     options: [
-      "Frontend web development",
-      "Backend systems and APIs",
-      "Machine learning and AI",
-      "Security and networking",
-      "Cloud and infrastructure",
-      "Mobile development",
-    ],
-  },
-  {
-    id: "q9",
-    question: "How important is work-life balance to you?",
-    type: "scale",
-    options: [
-      "Not important - I want to go all in",
-      "Somewhat important",
-      "Moderately important",
-      "Very important",
-      "Critical - it is my top priority",
-    ],
-  },
-  {
-    id: "q10",
-    question: "What best describes your problem-solving approach?",
-    type: "single_choice",
-    options: [
-      "Systematic and methodical - I follow a process",
-      "Creative and experimental - I try new things",
-      "Collaborative - I prefer to think with others",
-      "Research-driven - I study before acting",
+      "Strong pay and financial security",
+      "Deep technical mastery and respect for the craft",
+      "Building products that people visibly use",
+      "Autonomy and flexibility over my time",
+      "Work that has a social or scientific impact",
+      "Leading teams and shaping direction",
     ],
   },
 ];
+
+const POOL_QUESTIONS: AssessmentQuestion[] = [
+  {
+    id: "ambiguity",
+    question: "You are handed a vague problem with no clear right answer. That feels…",
+    type: "scale",
+    options: [
+      "Stressful — I want clear requirements",
+      "Uncomfortable but manageable",
+      "Fine, I will find a direction",
+      "Good — this is where I do my best work",
+      "Ideal — ambiguity is the interesting part",
+    ],
+  },
+  {
+    id: "debug_patience",
+    question: "A bug has resisted you for three hours. What is your honest reaction?",
+    type: "single_choice",
+    options: [
+      "Frustrated — I would want to hand it off",
+      "I push on but it wears me down",
+      "I take a break and come back methodically",
+      "I get more stubborn the longer it takes",
+    ],
+  },
+  {
+    id: "visual_sense",
+    question: "How strong is your eye for visual detail and layout?",
+    type: "scale",
+    options: [
+      "Weak — I cannot tell why something looks off",
+      "Below average",
+      "Average — I notice obvious problems",
+      "Strong — bad spacing bothers me",
+      "Very strong — I redesign things in my head",
+    ],
+  },
+  {
+    id: "people_facing",
+    question: "How much of your week do you want spent with other people?",
+    type: "scale",
+    options: [
+      "Almost none — deep solo focus",
+      "Mostly solo with occasional check-ins",
+      "An even split",
+      "Mostly collaborative",
+      "Constant contact — people are the job",
+    ],
+  },
+  {
+    id: "risk_tolerance",
+    question: "Which first job would you take?",
+    type: "single_choice",
+    options: [
+      "Stable large employer, clear ladder, predictable work",
+      "Established mid-size company with room to move",
+      "Early startup — more chaos, more ownership",
+      "Freelance or contract work I source myself",
+      "Research, academia, or an open-source funded role",
+    ],
+  },
+  {
+    id: "domain_pull",
+    question: "Which of these problem spaces genuinely interests you?",
+    type: "multi_choice",
+    options: [
+      "Health and medicine",
+      "Finance and markets",
+      "Games and entertainment",
+      "Climate and energy",
+      "Education",
+      "Robotics and hardware",
+      "Security and privacy",
+      "Developer tools and infrastructure",
+      "No strong preference — the work matters more",
+    ],
+  },
+  {
+    id: "writing",
+    question: "How do you feel about writing — docs, explanations, proposals?",
+    type: "scale",
+    options: [
+      "I avoid it",
+      "I can do it but would rather not",
+      "Neutral",
+      "I am comfortable and reasonably good at it",
+      "It is one of my strengths",
+    ],
+  },
+  {
+    id: "tools_touched",
+    question: "Which of these have you actually used, even briefly?",
+    type: "multi_choice",
+    options: [
+      "Git and GitHub",
+      "A terminal or command line",
+      "HTML and CSS",
+      "Python",
+      "JavaScript or TypeScript",
+      "SQL or a database",
+      "A spreadsheet for real analysis",
+      "Figma or another design tool",
+      "Cloud services (AWS, GCP, Azure)",
+      "None of these yet",
+    ],
+  },
+  {
+    id: "feedback_loop",
+    question: "What kind of progress keeps you going?",
+    type: "single_choice",
+    options: [
+      "Seeing something visible change immediately",
+      "A test suite going green",
+      "A number improving — speed, accuracy, cost",
+      "Someone telling me the thing helped them",
+      "Finally understanding a concept that was opaque",
+    ],
+  },
+  {
+    id: "credential_path",
+    question: "What is your situation with formal credentials?",
+    type: "single_choice",
+    options: [
+      "In a computing or engineering degree now",
+      "In a degree in a different field",
+      "Degree finished, changing direction",
+      "No degree — self-taught route",
+      "Bootcamp or certificate route",
+    ],
+  },
+];
+
+/** Fisher-Yates on a copy; sampling keeps repeat assessments from feeling identical. */
+function sample<T>(items: T[], count: number): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy.slice(0, count);
+}
+
+function buildQuestions(): AssessmentQuestion[] {
+  // 8 core + 6 sampled = 14, inside the requested 10-20 band.
+  return [...CORE_QUESTIONS, ...sample(POOL_QUESTIONS, 6)];
+}
 
 type Props = {
   questions?: AssessmentQuestion[];
 };
 
-export default function AssessmentForm({ questions = STATIC_QUESTIONS }: Props) {
+export default function AssessmentForm({ questions: provided }: Props) {
+  // Built once per mount, and only on the client so the sample does not mismatch SSR.
+  const [questions] = useState<AssessmentQuestion[]>(() => provided ?? buildQuestions());
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [currentStep, setCurrentStep] = useState(0);
@@ -164,9 +306,13 @@ export default function AssessmentForm({ questions = STATIC_QUESTIONS }: Props) 
 
   function handleSubmit() {
     startTransition(() => {
-      const assessmentAnswers: AssessmentAnswer[] = Object.entries(answers).map(
-        ([question_id, answer]) => ({ question_id, answer })
-      );
+      const assessmentAnswers: AssessmentAnswer[] = questions
+        .filter((q) => answers[q.id] !== undefined)
+        .map((q) => ({
+          question_id: q.id,
+          question: q.question,
+          answer: answers[q.id],
+        }));
       const params = new URLSearchParams();
       params.set("answers", JSON.stringify(assessmentAnswers));
       router.push(`/assessment/results?${params.toString()}`);

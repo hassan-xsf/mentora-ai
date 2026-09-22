@@ -32,7 +32,11 @@ export async function proxy(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/sign-up") ||
     request.nextUrl.pathname.startsWith("/auth");
 
-  if (!user && !isAuthRoute) {
+  // Certificate verification is for outsiders (recruiters, employers) who have
+  // no account here, so it must stay reachable while signed out.
+  const isPublicRoute = request.nextUrl.pathname.startsWith("/verify");
+
+  if (!user && !isAuthRoute && !isPublicRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/sign-in";
     return NextResponse.redirect(url);

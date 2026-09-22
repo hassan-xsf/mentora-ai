@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { notify } from "@/lib/db/notifications";
 
 type BadgeDefinition = {
   name: string;
@@ -69,6 +70,13 @@ export async function checkAndAwardBadges(studentId: string): Promise<string[]> 
         description: badge.description,
         icon: badge.icon,
       });
+      await notify(
+        studentId,
+        "badge",
+        `Badge unlocked: ${badge.name} ${badge.icon}`,
+        badge.description,
+        "/progress"
+      );
       newlyAwarded.push(badge.name);
     }
   }

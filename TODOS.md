@@ -9,7 +9,7 @@
 7. Resources in each steps (valid ones)
 8. internships section.
 9. Notifications system
-10. What to create? (Enter tech stack & experience and it'll guide you on the project & how to using graphs)
+10. ~~What to create? (Enter tech stack & experience and it'll guide you on the project & how to using graphs)~~ — done: `/build`
 11. Interview Practice
 
 

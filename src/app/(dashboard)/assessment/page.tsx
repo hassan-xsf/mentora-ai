@@ -74,7 +74,7 @@ export default async function AssessmentPage() {
             {roadmaps.length > 0 ? "Discover another path" : "Find your ideal career"}
           </h1>
           <p className="mb-6 text-[14px] text-[#626260]">
-            Answer 10 questions and get personalized career recommendations with a full learning roadmap.
+            Answer 14 questions and get personalized career recommendations with a full learning roadmap.
           </p>
 
           <AssessmentForm />

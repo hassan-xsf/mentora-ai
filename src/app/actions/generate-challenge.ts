@@ -4,6 +4,7 @@ import { chatCompletion } from "@/lib/ai/stream";
 import { requireUser } from "@/lib/auth/session";
 import { createChallenge } from "@/lib/db/practice";
 import { createClient } from "@/lib/supabase/server";
+import { spendCredits } from "@/lib/credits/credits";
 
 type GeneratedChallenge = {
   title: string;
@@ -25,6 +26,8 @@ export async function generateChallenge(
     { id: user.id, email: user.email ?? "", full_name: user.user_metadata?.full_name ?? null },
     { onConflict: "id", ignoreDuplicates: true }
   );
+
+  await spendCredits(user.id, "generate_challenge");
 
   const prompt = `You are a coding challenge generator. Create a ${difficulty} difficulty coding challenge.
 

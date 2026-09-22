@@ -4,6 +4,7 @@ import { chatCompletion } from "@/lib/ai/stream";
 import { awardXP, XP_VALUES } from "@/lib/gamification/xp";
 import { checkAndAwardBadges } from "@/lib/gamification/badges";
 import { updateStreak } from "@/lib/gamification/streaks";
+import { spendCredits, isInsufficientCredits } from "@/lib/credits/credits";
 import type { EvaluationResult, Difficulty } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -33,6 +34,18 @@ export async function POST(request: NextRequest) {
 
     if (!challenge) {
       return NextResponse.json({ error: "Challenge not found" }, { status: 404 });
+    }
+
+    try {
+      await spendCredits(user.id, "evaluate_submission");
+    } catch (err) {
+      if (isInsufficientCredits(err)) {
+        return NextResponse.json(
+          { error: err.message, code: err.code },
+          { status: 402 }
+        );
+      }
+      throw err;
     }
 
     // Save submission

@@ -3,6 +3,8 @@
 import { chatCompletion } from "@/lib/ai/stream";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireUser } from "@/lib/auth/session";
+import { spendCredits } from "@/lib/credits/credits";
 import type { MilestoneQuestion } from "@/types";
 
 function extractJSON(raw: string): string {
@@ -31,6 +33,9 @@ export async function generateMilestoneTest(
   roadmapId: string,
   sectionTitle: string
 ): Promise<string> {
+  const user = await requireUser();
+  await spendCredits(user.id, "generate_milestone_test");
+
   const supabase = await createClient();
   const adminSupabase = createAdminClient();
 

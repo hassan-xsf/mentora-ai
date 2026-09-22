@@ -175,4 +175,11 @@ export async function updateRoadmapCompletion(
     .update({ completion_percentage: percentage })
     .eq("id", roadmapId)
     .eq("student_id", studentId);
+
+  // Finishing the last node earns the certificate. issueCertificate is
+  // idempotent, so recalculating at 100% again is a no-op.
+  if (percentage === 100) {
+    const { issueCertificate } = await import("@/lib/db/certificates");
+    await issueCertificate(roadmapId, studentId);
+  }
 }

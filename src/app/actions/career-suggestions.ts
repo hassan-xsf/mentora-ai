@@ -1,6 +1,8 @@
 "use server";
 
 import { chatCompletion } from "@/lib/ai/stream";
+import { requireUser } from "@/lib/auth/session";
+import { spendCredits } from "@/lib/credits/credits";
 import type { AssessmentAnswer } from "@/types";
 
 export type CareerSuggestionResult = {
@@ -22,26 +24,45 @@ export type CareerSuggestionsResponse = {
 export async function getCareerSuggestions(
   answers: AssessmentAnswer[]
 ): Promise<CareerSuggestionsResponse> {
+  const user = await requireUser();
+  await spendCredits(user.id, "career_suggestions");
+
   const answersText = answers
-    .map((a, i) => `Q${i + 1}: ${Array.isArray(a.answer) ? a.answer.join(", ") : a.answer}`)
+    .map(
+      (a, i) =>
+        `${i + 1}. ${a.question ?? a.question_id}\n   → ${
+          Array.isArray(a.answer) ? a.answer.join("; ") : a.answer
+        }`
+    )
     .join("\n");
 
-  const prompt = `You are a career counselor AI. Based on the following student assessment answers, suggest exactly 5 suitable tech careers.
+  const prompt = `You are an experienced tech career advisor. A student completed an assessment. Recommend exactly 5 careers they should seriously consider.
 
-Assessment answers:
+ASSESSMENT
 ${answersText}
 
-Return ONLY a valid JSON array with exactly 5 objects. Each object must have these exact fields:
-- title: string (career title)
-- description: string (2-3 sentence description of the career)
-- fit_score: number (0-100, how well this career fits the student)
-- demand_indicator: string (must be exactly "High", "Medium", or "Low")
-- salary_min: number (USD annual minimum salary, no decimals)
-- salary_max: number (USD annual maximum salary, no decimals)
-- salary_currency: string (must be "USD")
-- why_good_fit: string (2-3 sentences explaining why this career fits the student based on their answers)
+HOW TO REASON
+1. Read their stated skill level, weekly study hours and deadline as hard constraints. If they have under 10 hours a week and want to be employable in 6 months, do not recommend roles that realistically need years of maths or a research background.
+2. Weigh what they said DRAINS them as heavily as what energises them. A role that hits one of their drains should score lower or be dropped.
+3. Prefer specific, hireable roles ("Frontend Engineer (React)", "Analytics Engineer", "Site Reliability Engineer", "ML Engineer", "Security Analyst", "Technical Writer", "QA Automation Engineer", "Solutions Engineer") over vague umbrellas like "Software Engineer" or "IT Professional".
+4. Spread the 5 across different kinds of work — do not return five flavours of the same job. Include at least one they probably have not considered but that genuinely fits their answers.
+5. fit_score must be honest and spread out. Do not give everything 80-90. Only exceed 85 when the answers strongly converge; the weakest of the 5 should usually sit between 45 and 65.
+6. Salary ranges: realistic entry-to-mid USD figures for that specific role in 2025, not top-of-market outliers.
+7. demand_indicator reflects real current hiring volume for that role.
 
-Return ONLY the JSON array, no markdown, no explanation, no code blocks.`;
+why_good_fit MUST quote or reference their actual answers (e.g. "you said long meetings drain you and you have 10-20 hours a week"). Generic praise that could apply to any student is a failure. Mention the honest downside or the main thing they would have to push through.
+
+Return ONLY a valid JSON array of exactly 5 objects, ordered by fit_score descending. Fields, exactly:
+- title: string
+- description: string (2-3 sentences: what the job actually does day to day)
+- fit_score: number (0-100 integer)
+- demand_indicator: "High" | "Medium" | "Low"
+- salary_min: number (USD, integer)
+- salary_max: number (USD, integer)
+- salary_currency: "USD"
+- why_good_fit: string (2-3 sentences grounded in their specific answers, including the honest trade-off)
+
+No markdown, no code blocks, no explanation. Start with [ and end with ].`;
 
   try {
     const raw = await chatCompletion(prompt);

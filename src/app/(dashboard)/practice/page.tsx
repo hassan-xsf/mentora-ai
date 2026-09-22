@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { generateChallenge } from "@/app/actions/generate-challenge";
+import { CREDIT_COSTS } from "@/lib/credits/config";
 
 const LANGUAGES = ["Python", "JavaScript", "TypeScript", "Java", "C++", "Go", "Rust"];
 const TOPICS = ["Arrays", "Strings", "Recursion", "Trees", "Sorting", "Dynamic Programming", "OOP", "APIs"];
@@ -64,29 +65,29 @@ export default function PracticePage() {
 
   return (
     <div className="min-h-screen bg-[#f5f1ec] font-sans text-[#111111]">
-      <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:py-20">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-stretch">
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12 lg:py-20">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-8 lg:gap-10 items-stretch">
 
           {/* Info Box */}
-          <div className="lg:col-span-5 bg-white rounded-2xl p-10 border border-[#d3cec6] flex flex-col justify-between">
+          <div className="lg:col-span-5 bg-white rounded-2xl p-6 sm:p-8 lg:p-10 border border-[#d3cec6] flex flex-col justify-between">
             <div>
               <span className="text-[14px] font-medium text-[#ff5600]">Mentora AI Engine</span>
-              <h1 className="mt-4 text-[40px] font-medium leading-[1.05] tracking-[-0.8px] text-[#111111]">
+              <h1 className="mt-3 text-[28px] sm:text-[34px] lg:text-[40px] font-medium leading-[1.1] lg:leading-[1.05] tracking-[-0.5px] lg:tracking-[-0.8px] text-[#111111]">
                 Practice Makes Perfect.
               </h1>
-              <p className="mt-5 text-[16px] leading-relaxed text-[#626260]">
+              <p className="mt-4 text-[15px] sm:text-[16px] leading-relaxed text-[#626260]">
                 Our AI creates challenges based on real-world scenarios and your current skill level.
                 Complete them to earn verified XP and advance your profile.
               </p>
             </div>
-            <div className="mt-12 space-y-3">
+            <div className="mt-8 lg:mt-12 space-y-3">
               <p className="text-[13px] font-medium text-[#111111]">Verify Your Rewards</p>
               <XpBadge xp={XP_MAP[difficulty]} />
             </div>
           </div>
 
           {/* Setup Box — light surface, orange reserved for accents (per DESIGN.md) */}
-          <div className="lg:col-span-7 bg-white rounded-2xl p-10 border border-[#d3cec6] space-y-8">
+          <div className="lg:col-span-7 bg-white rounded-2xl p-6 sm:p-8 lg:p-10 border border-[#d3cec6] space-y-6 sm:space-y-8">
             <SelectionGroup
               label="Programming Language"
               items={LANGUAGES}
@@ -104,13 +105,13 @@ export default function PracticePage() {
 
             <div>
               <p className="mb-3 text-[13px] font-medium text-[#626260]">Skill Level</p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 {DIFFICULTIES.map((d) => (
                   <button
                     key={d}
                     onClick={() => setDifficulty(d)}
                     disabled={isPending}
-                    className={`rounded-lg border py-4 text-[14px] font-semibold transition-all ${
+                    className={`rounded-lg border py-3 sm:py-4 text-[13px] sm:text-[14px] font-semibold transition-all ${
                       difficulty === d
                         ? "border-[#ff5600] bg-[#ff5600]/10 text-[#ff5600]"
                         : "border-[#d3cec6] bg-[#f5f1ec] text-[#626260] hover:border-[#ff5600]/50 hover:text-[#111111]"
@@ -122,8 +123,8 @@ export default function PracticePage() {
               </div>
             </div>
 
-            <div className="pt-6 border-t border-[#ebe7e1]">
-              {error && <p className="mb-5 text-[13px] text-[#c41c1c]">{error}</p>}
+            <div className="pt-5 sm:pt-6 border-t border-[#ebe7e1]">
+              {error && <p className="mb-4 text-[13px] text-[#c41c1c]">{error}</p>}
               <button
                 onClick={handleGenerate}
                 disabled={isPending}
@@ -135,7 +136,12 @@ export default function PracticePage() {
                     <span>{STEPS[stepIdx]}</span>
                   </>
                 ) : (
-                  <span>Generate Challenge</span>
+                  <>
+                    <span>Generate Challenge</span>
+                    <span className="text-[12px] font-normal opacity-75">
+                      {CREDIT_COSTS.generate_challenge} credits
+                    </span>
+                  </>
                 )}
               </button>
             </div>

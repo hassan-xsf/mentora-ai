@@ -4,6 +4,8 @@ import { requireUser } from "@/lib/auth/session";
 import { getRoadmapById } from "@/lib/db/roadmaps";
 import { getMilestoneTestsForRoadmap, getUnlockedSections } from "@/lib/db/milestone-tests";
 import { AIFallbackBadge } from "@/components/ui/AIFallbackBadge";
+import { getCertificatesByStudent, levelForSections } from "@/lib/db/certificates";
+import { CertificatePreviewCard } from "@/components/certificates/CertificatePreviewCard";
 import RoadmapView from "./RoadmapView";
 
 type Props = {
@@ -14,10 +16,11 @@ export default async function RoadmapPage({ params }: Props) {
   const { roadmapId } = await params;
   const user = await requireUser();
 
-  const [roadmap, milestoneTests, unlockedSections] = await Promise.all([
+  const [roadmap, milestoneTests, unlockedSections, certificates] = await Promise.all([
     getRoadmapById(roadmapId, user.id),
     getMilestoneTestsForRoadmap(roadmapId),
     getUnlockedSections(user.id, roadmapId),
+    getCertificatesByStudent(user.id),
   ]);
 
   if (!roadmap) notFound();
@@ -34,6 +37,12 @@ export default async function RoadmapPage({ params }: Props) {
   const sortedSections = Array.from(sections.entries()).sort(([a], [b]) => a - b);
   const totalNodes = roadmap.nodes.length;
   const completedNodes = roadmap.nodes.filter((n) => n.is_completed).length;
+
+  const earnedCertificate = certificates.find((c) => c.roadmap_id === roadmapId);
+  const recipientName =
+    (user.user_metadata?.full_name as string | undefined)?.trim() ||
+    user.email?.split("@")[0] ||
+    "Student";
 
   return (
     <div className="min-h-full bg-[#f5f1ec]">
@@ -100,6 +109,16 @@ export default async function RoadmapPage({ params }: Props) {
             </div>
           </div>
         </div>
+
+        {totalNodes > 0 && (
+          <CertificatePreviewCard
+            title={roadmap.title}
+            level={levelForSections(sortedSections.length)}
+            recipientName={recipientName}
+            earnedCertificateId={earnedCertificate?.id ?? null}
+            completionPercentage={roadmap.completion_percentage}
+          />
+        )}
 
         {totalNodes === 0 ? (
           <div className="rounded-[12px] border border-[#d3cec6] bg-white px-6 py-10 text-center">

@@ -11,9 +11,17 @@ const navLinks = [
   { href: "/assessment", label: "Career Discovery" },
   { href: "/practice",   label: "Practice" },
   { href: "/progress",   label: "Progress" },
+  { href: "/certificates", label: "Certificates" },
+  { href: "/pricing",    label: "Pricing" },
 ];
 
-export function Navbar() {
+export function Navbar({
+  credits,
+  notifications,
+}: {
+  credits?: React.ReactNode;
+  notifications?: React.ReactNode;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -45,17 +53,24 @@ export function Navbar() {
             ))}
           </nav>
 
-          {/* Desktop sign out */}
-          <form action="/sign-out" method="post" className="hidden md:block">
+          {/* Desktop: credits + sign out */}
+          <div className="hidden items-center gap-2 md:flex">
+            {notifications}
+            {credits}
+            <form action="/sign-out" method="post">
             <button
               type="submit"
               className="rounded-[6px] px-3 py-1.5 text-[13px] font-medium text-[#626260] transition-colors hover:bg-[#ebe7e1] hover:text-[#111111]"
             >
               Sign out
             </button>
-          </form>
+            </form>
+          </div>
 
-          {/* Mobile hamburger */}
+          {/* Mobile: credits badge stays visible next to the hamburger */}
+          <div className="flex items-center gap-2 md:hidden">
+            {notifications}
+            {credits}
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
@@ -72,7 +87,8 @@ export function Navbar() {
                 <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
               </svg>
             )}
-          </button>
+            </button>
+          </div>
         </div>
       </header>
 

@@ -10,4 +10,9 @@
 8. internships section.
 9. Notifications system
 10. What to create? (Enter tech stack & experience and it'll guide you on the project & how to using graphs)
+11. Interview Practice
 
+
+
+ this is mentora ai for student ,  this is our current design i want to change this design make it unqiue and simple follow the current theme 
+ give me 5 variations in code  add five buttons for each respective design to switch the screen 

@@ -8,13 +8,13 @@ export default async function AssessmentPage() {
   const roadmaps = await getRoadmapsByStudent(user.id).catch(() => []);
 
   return (
-    <div className="min-h-full bg-[#f5f1ec]">
+    <div className="min-h-full bg-[#f5f1ec] antialiased selection:bg-[#ff5600] selection:text-white">
       <div className="mx-auto max-w-xl px-4 py-6 sm:px-6 sm:py-10">
 
         {/* Existing roadmaps */}
         {roadmaps.length > 0 && (
           <div className="mb-10">
-            <p className="mb-1 text-[11px] font-medium uppercase tracking-widest text-[#9c9fa5]">
+            <p className="mb-1 text-[11px] font-bold uppercase tracking-widest text-[#ff5600]">
               Your Roadmaps
             </p>
             <h2 className="mb-4 text-[22px] font-medium tracking-[-0.4px] text-[#111111]">
@@ -25,22 +25,39 @@ export default async function AssessmentPage() {
                 <Link
                   key={roadmap.id}
                   href={`/roadmap/${roadmap.id}`}
-                  className="flex items-center justify-between rounded-[10px] border border-[#d3cec6] bg-white px-5 py-4 transition-colors hover:border-[#111111] group"
+                  className="group flex items-center justify-between rounded-[12px] border border-[#d3cec6] bg-white px-5 py-4 transition-all hover:border-[#ff5600] hover:shadow-xs"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[14px] font-medium text-[#111111]">{roadmap.title}</p>
-                    <div className="mt-1.5 flex items-center gap-3">
-                      <div className="h-1 flex-1 max-w-30 overflow-hidden rounded-full bg-[#f5f1ec]">
+                    <p className="truncate text-[14px] font-medium text-[#111111] transition-colors group-hover:text-[#ff5600]">
+                      {roadmap.title}
+                    </p>
+                    <div className="mt-2 flex items-center gap-3">
+                      <div className="h-1 flex-1 max-w-32 overflow-hidden rounded-full bg-[#f5f1ec]">
                         <div
-                          className="h-1 rounded-full bg-[#111111]"
+                          className="h-1 rounded-full bg-[#ff5600] transition-all duration-300"
                           style={{ width: `${roadmap.completion_percentage}%` }}
                         />
                       </div>
-                      <span className="text-[11px] text-[#9c9fa5]">{roadmap.completion_percentage}%</span>
+                      <span className="text-[11px] font-medium text-[#9c9fa5]">
+                        {roadmap.completion_percentage}%
+                      </span>
                     </div>
                   </div>
-                  <svg className="ml-4 shrink-0 text-[#9c9fa5] group-hover:text-[#111111] transition-colors" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-                    <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <svg
+                    className="ml-4 shrink-0 text-[#9c9fa5] transition-colors group-hover:text-[#ff5600]"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    aria-hidden
+                  >
+                    <path
+                      d="M6 3l5 5-5 5"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
                   </svg>
                 </Link>
               ))}
@@ -50,7 +67,7 @@ export default async function AssessmentPage() {
 
         {/* New assessment */}
         <div>
-          <p className="mb-1 text-[11px] font-medium uppercase tracking-widest text-[#9c9fa5]">
+          <p className="mb-1 text-[11px] font-bold uppercase tracking-widest text-[#ff5600]">
             {roadmaps.length > 0 ? "New Assessment" : "Career Discovery"}
           </p>
           <h1 className="mb-1 text-[28px] font-medium leading-[1.15] tracking-[-0.6px] text-[#111111]">

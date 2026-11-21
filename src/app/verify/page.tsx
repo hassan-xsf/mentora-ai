@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { normalizeCode } from "@/lib/db/certificates";
 
 /**
  * Public entry point for certificate verification. A plain server-action form
@@ -7,9 +8,10 @@ import { redirect } from "next/navigation";
 export default function VerifyIndexPage() {
   async function lookup(formData: FormData) {
     "use server";
-    const code = String(formData.get("code") ?? "").trim().toUpperCase();
-    if (!code) return;
-    redirect(`/verify/${encodeURIComponent(code)}`);
+    const raw = String(formData.get("code") ?? "").trim().slice(0, 64);
+    if (!raw) return;
+    // Unrecognisable input still goes to the code page, which 404s cleanly.
+    redirect(`/verify/${encodeURIComponent(normalizeCode(raw) ?? raw)}`);
   }
 
   return (
@@ -47,6 +49,7 @@ export default function VerifyIndexPage() {
               id="code"
               name="code"
               required
+              maxLength={64}
               autoComplete="off"
               spellCheck={false}
               placeholder="MNT-XXXX-XXXX"

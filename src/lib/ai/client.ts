@@ -1,5 +1,6 @@
 // Thin wrapper around the Mentora AI service.
 // Endpoint accepts a `query` parameter and returns `{ response: string }`.
+import { logAICall } from "./telemetry";
 
 type AIResponse = {
   response?: string;
@@ -8,12 +9,20 @@ type AIResponse = {
   output?: string;
 };
 
+export type AIQueryOptions = {
+  /** Telemetry label, e.g. "generate_roadmap". Defaults to "unknown". */
+  feature?: string;
+  /** Logged with the call when known; never sent to the model. */
+  studentId?: string;
+};
+
 function getConfig() {
   const url = process.env.AI_API_URL;
   const token = process.env.AI_SECRET_TOKEN;
   if (!url) throw new Error("AI_API_URL is not set");
   if (!token) throw new Error("AI_SECRET_TOKEN is not set");
-  return { url, token };
+  const timeoutMs = Number(process.env.AI_TIMEOUT_MS) || 60_000;
+  return { url, token, timeoutMs };
 }
 
 function pickResponseText(data: AIResponse | string): string {
@@ -30,6 +39,33 @@ const BROWSER_HEADERS = {
   "Accept-Language": "en-US,en;q=0.9",
 } as const;
 
+/** Upstream answered with a non-2xx status. */
+export class AIHttpError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message);
+    this.name = "AIHttpError";
+  }
+}
+
+export class AITimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`AI request timed out after ${timeoutMs}ms`);
+    this.name = "AITimeoutError";
+  }
+}
+
+/**
+ * Transient failures worth one more try: timeouts, network errors (undici
+ * throws TypeError "fetch failed") and 5xx. 4xx means the request itself is
+ * wrong or rejected, so repeating it only burns time.
+ */
+export function isRetryable(err: unknown): boolean {
+  if (err instanceof AIHttpError) return err.status >= 500;
+  return err instanceof AITimeoutError || err instanceof TypeError;
+}
+
+const RETRY_DELAY_MS = 800;
+
 async function readBody(res: Response): Promise<string> {
   try {
     const text = await res.text();
@@ -39,20 +75,25 @@ async function readBody(res: Response): Promise<string> {
   }
 }
 
-async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs = 120_000): Promise<Response> {
+async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
-  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(id));
+  try {
+    // Await inside try so an abort that lands mid-request maps to AITimeoutError.
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (controller.signal.aborted) throw new AITimeoutError(timeoutMs);
+    throw err;
+  } finally {
+    clearTimeout(id);
+  }
 }
 
 /**
- * Send a prompt to the AI service. Tries GET first; if the prompt is large
- * or the upstream rejects (413 / 414 / 403), retries via POST with the same
- * payload as a JSON body.
+ * One attempt. Tries GET first; if the prompt is large or the upstream
+ * rejects (4xx other than 401), falls back to POST with a JSON body.
  */
-export async function aiQuery(prompt: string): Promise<string> {
-  const { url, token } = getConfig();
-
+async function attempt(prompt: string, url: string, token: string, timeoutMs: number): Promise<string> {
   // Long URLs trip up many proxies (414 or, oddly, 403). Skip straight to POST
   // when the encoded query is large.
   const encoded = encodeURIComponent(prompt);
@@ -65,24 +106,22 @@ export async function aiQuery(prompt: string): Promise<string> {
         ...BROWSER_HEADERS,
         "x-secret-token": token,
       },
-    });
+    }, timeoutMs);
 
     if (getRes.ok) {
       const data = (await getRes.json()) as AIResponse | string;
       return pickResponseText(data);
     }
 
-    // 4xx other than 401 → try POST fallback (some gateways block long GETs)
+    const body = await readBody(getRes);
+    // 4xx other than 401 → try POST (some gateways block long GETs)
     if (getRes.status !== 401 && getRes.status >= 400 && getRes.status < 500) {
-      const body = await readBody(getRes);
       console.warn(`[ai] GET ${getRes.status} ${getRes.statusText} — body: ${body} — retrying via POST`);
     } else {
-      const body = await readBody(getRes);
-      throw new Error(`AI request failed: ${getRes.status} ${getRes.statusText} — ${body}`);
+      throw new AIHttpError(getRes.status, `AI request failed: ${getRes.status} ${getRes.statusText} — ${body}`);
     }
   }
 
-  // POST fallback
   const postRes = await fetchWithTimeout(url, {
     method: "POST",
     headers: {
@@ -91,13 +130,50 @@ export async function aiQuery(prompt: string): Promise<string> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ query: prompt }),
-  });
+  }, timeoutMs);
 
   if (!postRes.ok) {
     const body = await readBody(postRes);
-    throw new Error(`AI request failed (POST): ${postRes.status} ${postRes.statusText} — ${body}`);
+    throw new AIHttpError(postRes.status, `AI request failed (POST): ${postRes.status} ${postRes.statusText} — ${body}`);
   }
 
   const data = (await postRes.json()) as AIResponse | string;
   return pickResponseText(data);
+}
+
+/**
+ * Send a prompt to the AI service. Retries once (after a short delay) on
+ * timeouts, network errors and 5xx. Every call is logged to `ai_events`
+ * (fire-and-forget) with its feature, latency, outcome and sizes.
+ */
+export async function aiQuery(prompt: string, opts: AIQueryOptions = {}): Promise<string> {
+  const { url, token, timeoutMs } = getConfig();
+  const started = Date.now();
+  const log = (ok: boolean, responseChars: number, error?: unknown) =>
+    logAICall({
+      feature: opts.feature ?? "unknown",
+      kind: "call",
+      ok,
+      latencyMs: Date.now() - started,
+      promptChars: prompt.length,
+      responseChars,
+      error: error === undefined ? null : error instanceof Error ? error.message : String(error),
+      studentId: opts.studentId ?? null,
+    });
+
+  for (let i = 0; ; i++) {
+    try {
+      const text = await attempt(prompt, url, token, timeoutMs);
+      log(true, text.length);
+      return text;
+    } catch (err) {
+      if (i === 0 && isRetryable(err)) {
+        console.warn(`[ai] ${opts.feature ?? "unknown"}: ${err instanceof Error ? err.message.slice(0, 200) : err} — retrying once`);
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+        continue;
+      }
+      log(false, 0, err);
+      throw err;
+    }
+  }
 }

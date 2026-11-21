@@ -1,9 +1,13 @@
 import { requireUser } from "@/lib/auth/session";
-import { getProgressRecord, getActivityData } from "@/lib/db/progress";
+import { getActivityData } from "@/lib/db/progress";
 import { getStudentBadges, getStudentProfile } from "@/lib/db/practice";
 import { ActivityChart } from "@/components/progress/ActivityChart";
 import { ProgressEmptyState } from "@/components/progress/ProgressEmptyState";
-import type { Badge, ProgressRecord } from "@/types";
+import { DailyBars } from "@/components/progress/DailyBars";
+import { formatMinutes } from "@/components/progress/series";
+import { STUDY_KIND_LABELS, STUDY_KINDS } from "@/components/progress/study-kind";
+import { getProgressStats } from "./data";
+import type { Badge } from "@/types";
 
 // ─── XP helpers ───────────────────────────────────────────────────────────────
 
@@ -92,17 +96,20 @@ function ScoreRing({ score }: { score: number }) {
 export default async function ProgressPage() {
   const user = await requireUser();
 
-  const [progress, activityData, badges, profile] = await Promise.all([
-    getProgressRecord(user.id),
+  const [stats, activityData, badges, profile] = await Promise.all([
+    getProgressStats(user.id),
     getActivityData(user.id, 30),
     getStudentBadges(user.id),
     getStudentProfile(user.id),
   ]);
 
   const hasData =
-    progress.nodes_completed > 0 ||
-    progress.coding_challenges_completed > 0 ||
-    progress.milestone_tests_taken > 0;
+    stats.nodesCompleted > 0 ||
+    stats.coding.solved > 0 ||
+    stats.tests.attempts > 0 ||
+    stats.study.totalMinutes > 0 ||
+    profile.xp_total > 0;
+  const weekKinds = STUDY_KINDS.filter((k) => (stats.study.weekByKind[k] ?? 0) > 0);
 
   const { level, progress: xpProgress, next } = xpLevel(profile.xp_total);
   const xpPct = Math.round((xpProgress / next) * 100);
@@ -171,34 +178,94 @@ export default async function ProgressPage() {
               </div>
             </div>
 
+            {/* Study time */}
+            <div className="rounded-[12px] border border-[#d3cec6] bg-white p-6">
+              <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-widest text-[#9c9fa5]">Study time</p>
+                  <h2 className="mt-0.5 text-[18px] font-medium tracking-[-0.2px] text-[#111111]">
+                    Last 14 days
+                  </h2>
+                </div>
+                <dl className="flex gap-6">
+                  {(
+                    [
+                      ["Today", stats.study.todayMinutes],
+                      ["This week", stats.study.weekMinutes],
+                      ["All time", stats.study.totalMinutes],
+                    ] as const
+                  ).map(([label, minutes]) => (
+                    <div key={label}>
+                      <dt className="text-[11px] text-[#9c9fa5]">{label}</dt>
+                      <dd className="text-[20px] font-medium leading-tight tracking-[-0.3px] text-[#111111]">
+                        {formatMinutes(minutes)}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+              <DailyBars data={stats.study.daily} format={formatMinutes} label="Minutes studied per day" color="#ff5600" />
+              <p className="mt-3 text-[12px] text-[#9c9fa5]">
+                {weekKinds.length > 0
+                  ? `This week: ${weekKinds
+                      .map((k) => `${STUDY_KIND_LABELS[k]} ${formatMinutes(stats.study.weekByKind[k] ?? 0)}`)
+                      .join(" · ")}`
+                  : "Counted while you're active on roadmaps, tests, practice, review and blueprints."}
+              </p>
+            </div>
+
             {/* Stats grid */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              <StatCard label="Roadmaps" value={stats.roadmapsCompleted} sub="completed" />
+              <StatCard label="Topics" value={stats.nodesCompleted} sub="completed" />
               <StatCard
-                label="Roadmaps"
-                value={progress.roadmaps_completed}
-                sub="completed"
+                label="Tests passed"
+                value={stats.tests.passed}
+                sub={`${stats.tests.attempts} attempt${stats.tests.attempts !== 1 ? "s" : ""}`}
               />
-              <StatCard
-                label="Nodes"
-                value={progress.nodes_completed}
-                sub="completed"
-              />
-              <StatCard
-                label="Tests taken"
-                value={progress.milestone_tests_taken}
-                sub="milestones"
-              />
-              <StatCard
-                label="Challenges"
-                value={progress.coding_challenges_completed}
-                sub="solved"
-              />
+              <StatCard label="Challenges" value={stats.coding.solved} sub={`${stats.coding.passed} passed`} />
               <StatCard
                 label="Avg score"
-                value={progress.milestone_tests_taken > 0 ? `${Math.round(progress.milestone_tests_avg_score)}%` : "—"}
+                value={stats.tests.avgScore !== null ? `${stats.tests.avgScore}%` : "—"}
                 sub="test average"
                 accent
               />
+            </div>
+
+            {/* XP over time + coding breakdown */}
+            <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1fr_260px]">
+              <div className="rounded-[12px] border border-[#d3cec6] bg-white p-6">
+                <div className="mb-5 flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-widest text-[#9c9fa5]">XP</p>
+                    <h2 className="mt-0.5 text-[18px] font-medium tracking-[-0.2px] text-[#111111]">
+                      Earned, last 30 days
+                    </h2>
+                  </div>
+                  <span className="rounded-[6px] bg-[#f5f1ec] px-2.5 py-1 text-[12px] font-medium text-[#626260]">
+                    +{stats.xp.last30.toLocaleString()} XP
+                  </span>
+                </div>
+                <DailyBars data={stats.xp.daily} format={(v) => `${v} XP`} label="XP earned per day" />
+              </div>
+
+              <div className="rounded-[12px] border border-[#d3cec6] bg-white p-6">
+                <p className="text-[11px] font-medium uppercase tracking-widest text-[#9c9fa5]">Coding</p>
+                <h2 className="mt-0.5 text-[18px] font-medium tracking-[-0.2px] text-[#111111]">Challenges</h2>
+                <ul className="mt-4 space-y-2.5">
+                  {(["easy", "medium", "hard"] as const).map((d) => (
+                    <li key={d} className="flex items-center justify-between text-[13px]">
+                      <span className="capitalize text-[#626260]">{d}</span>
+                      <span className="font-medium tabular-nums text-[#111111]">{stats.coding.byDifficulty[d]}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-4 border-t border-[#ebe7e1] pt-3 text-[12px] text-[#9c9fa5]">
+                  {stats.coding.avgCorrectness !== null
+                    ? `Average correctness ${stats.coding.avgCorrectness}%`
+                    : "Solve a challenge to see your accuracy."}
+                </p>
+              </div>
             </div>
 
             {/* Activity chart + score ring */}
@@ -219,16 +286,16 @@ export default async function ProgressPage() {
               </div>
 
               {/* Score ring card */}
-              {progress.milestone_tests_taken > 0 && (
+              {stats.tests.avgScore !== null && (
                 <div className="rounded-[12px] border border-[#d3cec6] bg-white p-6 flex flex-col items-center justify-center gap-4">
-                  <ScoreRing score={Math.round(progress.milestone_tests_avg_score)} />
+                  <ScoreRing score={stats.tests.avgScore} />
                   <div className="text-center">
                     <p className="text-[13px] font-medium text-[#111111]">Avg test score</p>
                     <p className="mt-0.5 text-[12px] text-[#9c9fa5]">
-                      {progress.milestone_tests_taken} test{progress.milestone_tests_taken !== 1 ? "s" : ""}
+                      {stats.tests.attempts} attempt{stats.tests.attempts !== 1 ? "s" : ""}
                     </p>
-                    <p className={`mt-1.5 text-[11px] font-medium ${progress.milestone_tests_avg_score >= 70 ? "text-[#0bdf50]" : "text-[#ff5600]"}`}>
-                      {progress.milestone_tests_avg_score >= 70 ? "Passing ✓" : "Keep going →"}
+                    <p className={`mt-1.5 text-[11px] font-medium ${stats.tests.avgScore >= 70 ? "text-[#0bdf50]" : "text-[#ff5600]"}`}>
+                      {stats.tests.avgScore >= 70 ? "Passing ✓" : "Keep going →"}
                     </p>
                   </div>
                 </div>

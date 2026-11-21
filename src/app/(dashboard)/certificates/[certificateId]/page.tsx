@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth/session";
 import { getCertificateById } from "@/lib/db/certificates";
 import { CertificateCard } from "@/components/certificates/CertificateCard";
+import { CertificateQR } from "@/components/certificates/CertificateQR";
+import { linkedInAddUrl } from "@/components/certificates/certificate-pdf";
 import { CopyVerifyLink } from "./CopyVerifyLink";
 import type { CertificateLevel } from "@/types";
 
@@ -51,7 +53,14 @@ export default async function CertificatePage({ params }: Props) {
             <span className="font-mono text-[#111111]">{certificate.code}</span> — can
             confirm this certificate is genuine.
           </p>
-          <CopyVerifyLink code={certificate.code} />
+          <CopyVerifyLink
+            code={certificate.code}
+            pdfHref={`/certificates/${certificate.id}/pdf`}
+            linkedInHref={linkedInAddUrl(certificate)}
+          />
+          <div className="mt-5 border-t border-[#f0ece5] pt-5">
+            <CertificateQR code={certificate.code} />
+          </div>
         </div>
       </div>
     </div>

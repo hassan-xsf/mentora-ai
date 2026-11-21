@@ -131,15 +131,28 @@ export type CodingChallenge = {
   xp_awarded: number;
   used_fallback?: boolean;
   created_at: string;
+  title?: string | null;
+  /** Visible example tests only; hidden tests live server-side. */
+  examples?: { input: string; output: string }[];
+  /** Tests were checked against a reference solution at generation time. */
+  validated?: boolean;
+  first_passed_at?: string | null;
 };
 
 export type EvaluationResult = {
   passed: boolean;
   feedback: string;
   correctness_score: number;
-  style_score: number;
+  /** null when the AI reviewer was unavailable. */
+  style_score: number | null;
   xp_earned: number;
   used_fallback?: boolean;
+  tests_passed?: number;
+  tests_total?: number;
+  results?: import("@/lib/runner/grading").ClientTestResult[];
+  compile_error?: string | null;
+  runtime_ms?: number | null;
+  memory_kb?: number | null;
 };
 
 // ─── Gamification ─────────────────────────────────────────────────────────────

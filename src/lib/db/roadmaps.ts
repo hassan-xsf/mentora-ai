@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { Roadmap } from "@/types";
 
 export async function getRoadmapsByStudent(studentId: string): Promise<Roadmap[]> {
@@ -34,6 +35,8 @@ export type FullNode = {
     type: "video" | "article" | "note";
     url: string | null;
     content: string | null;
+    // absent until migration 012 is applied
+    link_kind?: "direct" | "search" | "none" | null;
   }[];
   tasks: {
     id: string;
@@ -146,11 +149,24 @@ export async function getNodeById(nodeId: string) {
   };
 }
 
+/**
+ * Recompute completion % and issue the certificate once every node is complete
+ * AND every milestone test is passed (issueCertificate checks both).
+ * Callers pass the authenticated user's id; ownership is re-checked here.
+ */
 export async function updateRoadmapCompletion(
   roadmapId: string,
   studentId: string
 ): Promise<void> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
+
+  const { data: roadmap } = await supabase
+    .from("roadmaps")
+    .select("id")
+    .eq("id", roadmapId)
+    .eq("student_id", studentId)
+    .maybeSingle();
+  if (!roadmap) return;
 
   const { data: nodes } = await supabase
     .from("nodes")
@@ -176,8 +192,7 @@ export async function updateRoadmapCompletion(
     .eq("id", roadmapId)
     .eq("student_id", studentId);
 
-  // Finishing the last node earns the certificate. issueCertificate is
-  // idempotent, so recalculating at 100% again is a no-op.
+  // issueCertificate is idempotent and also requires all milestone tests passed.
   if (percentage === 100) {
     const { issueCertificate } = await import("@/lib/db/certificates");
     await issueCertificate(roadmapId, studentId);

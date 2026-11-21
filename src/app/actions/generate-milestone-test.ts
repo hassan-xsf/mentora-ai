@@ -1,149 +1,93 @@
 "use server";
 
-import { chatCompletion } from "@/lib/ai/stream";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/auth/session";
-import { spendCredits } from "@/lib/credits/credits";
-import type { MilestoneQuestion } from "@/types";
+import { isInsufficientCredits, refundCredits, spendCredits } from "@/lib/credits/credits";
+import { getOpenSession, getOwnedTest } from "@/lib/db/milestone-tests";
+import { generateTestQuestions } from "@/lib/adaptive/ai";
+import { buildFallbackQuestions, cooldownEndsAt } from "@/lib/adaptive/questions";
+import type { Json } from "@/types/database";
 
-function extractJSON(raw: string): string {
-  // Strip markdown fences
-  let cleaned = raw
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```\s*$/, "")
-    .trim();
-
-  // Find the first [ or { and the matching last ] or }
-  const firstBracket = Math.min(
-    ...["[", "{"]
-      .map((c) => cleaned.indexOf(c))
-      .filter((i) => i !== -1)
-  );
-  const lastBracket = Math.max(cleaned.lastIndexOf("]"), cleaned.lastIndexOf("}"));
-
-  if (isFinite(firstBracket) && lastBracket > firstBracket) {
-    cleaned = cleaned.slice(firstBracket, lastBracket + 1);
-  }
-  return cleaned;
-}
-
-export async function generateMilestoneTest(
-  testId: string,
-  roadmapId: string,
-  sectionTitle: string
-): Promise<string> {
+/**
+ * Starts a new attempt: charges credits and generates a fresh question set
+ * stored server-side. Answers never leave the server; the page renders the
+ * sanitized questions after this returns.
+ */
+export async function startMilestoneAttempt(testId: string): Promise<{ error?: string }> {
   const user = await requireUser();
-  await spendCredits(user.id, "generate_milestone_test");
+  if (typeof testId !== "string") return { error: "Test not found." };
 
-  const supabase = await createClient();
-  const adminSupabase = createAdminClient();
+  const test = await getOwnedTest(testId, user.id);
+  if (!test) return { error: "Test not found." };
+  if (!test.unlocked) return { error: "This section is still locked." };
 
-  // Get nodes for this test's section
-  const { data: test } = await supabase
-    .from("milestone_tests")
-    .select("section_index")
-    .eq("id", testId)
-    .single();
+  // Re-opening an unfinished attempt is free and keeps the same questions.
+  if (await getOpenSession(testId, user.id)) return {};
 
-  const sectionIndex = test?.section_index ?? 0;
-
-  const { data: nodes } = await supabase
-    .from("nodes")
-    .select("title, description")
-    .eq("roadmap_id", roadmapId)
-    .eq("section_index", sectionIndex);
-
-  const nodeTopics = (nodes ?? []).map((n) => n.title);
-  const topicsContext = (nodes ?? [])
-    .map((n) => `- ${n.title}: ${n.description}`)
-    .join("\n");
-
-  const prompt = `You are an expert educational quiz designer. Create EXACTLY 5 multiple-choice questions for a milestone assessment.
-
-SECTION: "${sectionTitle}"
-
-TOPICS COVERED IN THIS SECTION:
-${topicsContext || nodeTopics.join(", ")}
-
-REQUIREMENTS:
-- Generate EXACTLY 5 questions, no more, no less
-- Each question MUST test understanding of one of the topics listed above
-- Each question MUST have EXACTLY 4 options
-- Exactly ONE option must be correct
-- The correct_answer field MUST match one of the 4 options character-for-character
-- Questions should be conceptual, not trivia — test true understanding
-- Distractors (wrong answers) should be plausible, not obviously wrong
-- Mix difficulty: 2 easy, 2 medium, 1 challenging
-- Cover DIFFERENT topics across the 5 questions, not just one
-
-OUTPUT FORMAT — return ONLY this JSON array, nothing else:
-[
-  {
-    "id": "q1",
-    "question": "Clear, specific question text ending with a question mark?",
-    "type": "mcq",
-    "options": ["Option A text", "Option B text", "Option C text", "Option D text"],
-    "correct_answer": "Option A text"
-  },
-  ... 4 more objects with ids q2, q3, q4, q5
-]
-
-CRITICAL: Output ONLY the raw JSON array. No markdown fences. No explanations before or after. Start with [ and end with ].`;
-
-  let questions: MilestoneQuestion[] = [];
-  let usedFallback = false;
+  const admin = createAdminClient();
+  const { data: last } = await admin
+    .from("milestone_test_attempts")
+    .select("score, attempted_at")
+    .eq("test_id", testId)
+    .eq("student_id", user.id)
+    .order("attempted_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const cooldown = cooldownEndsAt(last, new Date());
+  if (cooldown) {
+    const mins = Math.ceil((cooldown.getTime() - Date.now()) / 60_000);
+    return { error: `Review your weak topics first — you can retry in ${mins} minute${mins === 1 ? "" : "s"}.` };
+  }
 
   try {
-    const raw = await chatCompletion(prompt);
-    const cleaned = extractJSON(raw);
-    const parsed = JSON.parse(cleaned) as MilestoneQuestion[];
-
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      throw new Error("AI returned non-array or empty array");
-    }
-
-    questions = parsed
-      .slice(0, 5)
-      .filter((q) => q.question && Array.isArray(q.options) && q.options.length === 4 && q.correct_answer)
-      .map((q, i) => ({
-        id: q.id || `q${i + 1}`,
-        question: q.question,
-        type: "mcq" as const,
-        options: q.options,
-        correct_answer: q.correct_answer,
-      }));
-
-    if (questions.length < 3) {
-      throw new Error("AI returned too few valid questions");
-    }
+    await spendCredits(user.id, "generate_milestone_test");
   } catch (err) {
-    console.error("[generate-milestone-test] AI parse failed, using fallback:", err);
-    usedFallback = true;
-    // Fallback questions — only used if AI completely fails
-    questions = nodeTopics.slice(0, 5).map((topic, i) => ({
-      id: `q${i + 1}`,
-      question: `Which of the following best describes ${topic}?`,
-      type: "mcq" as const,
-      options: [
-        "A foundational concept in this field",
-        "An advanced optimization technique",
-        "A deprecated methodology",
-        "An unrelated technology",
-      ],
-      correct_answer: "A foundational concept in this field",
-    }));
+    if (isInsufficientCredits(err)) return { error: err.message };
+    throw err;
   }
 
-  // Use admin client to bypass RLS for the write
-  const { error: updateError } = await adminSupabase
-    .from("milestone_tests")
-    .update({ questions, used_fallback: usedFallback })
-    .eq("id", testId);
+  const [{ data: sectionNodes }, { data: allNodes }, { data: previous }] = await Promise.all([
+    admin
+      .from("nodes")
+      .select("id, title, description")
+      .eq("roadmap_id", test.roadmap_id)
+      .eq("section_index", test.section_index)
+      .order("position", { ascending: true }),
+    admin.from("nodes").select("title").eq("roadmap_id", test.roadmap_id),
+    admin
+      .from("milestone_test_sessions")
+      .select("questions")
+      .eq("test_id", testId)
+      .eq("student_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(2),
+  ]);
+  const nodes = (sectionNodes ?? []).slice(0, 12);
+  const avoid = (previous ?? [])
+    .flatMap((s) => (s.questions as { question?: string }[]) ?? [])
+    .map((q) => q.question ?? "")
+    .filter(Boolean);
 
-  if (updateError) {
-    console.error("[generate-milestone-test] Update failed:", updateError);
+  let questions = await generateTestQuestions(test.title, nodes, avoid, user.id);
+  const usedFallback = !questions;
+  if (!questions) {
+    // Canned questions are practice-only and free.
+    await refundCredits(user.id, "generate_milestone_test");
+    questions = buildFallbackQuestions(nodes, (allNodes ?? []).map((n) => n.title), test.title);
   }
 
-  return testId;
+  const { error } = await admin.from("milestone_test_sessions").insert({
+    test_id: testId,
+    student_id: user.id,
+    questions: questions as unknown as Json,
+    used_fallback: usedFallback,
+  });
+  if (error) {
+    if (!usedFallback) await refundCredits(user.id, "generate_milestone_test");
+    // 23505: a parallel request already opened an attempt — use that one.
+    if (error.code === "23505") return {};
+    console.error("[start-milestone-attempt] insert failed:", error.message);
+    return { error: "Couldn't start the test. Please try again." };
+  }
+  return {};
 }

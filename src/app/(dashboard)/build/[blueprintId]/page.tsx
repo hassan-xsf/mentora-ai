@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth/session";
 import { getBlueprintById } from "@/lib/db/blueprints";
 import { AIFallbackBadge } from "@/components/ui/AIFallbackBadge";
+import { AIFeedback } from "@/components/ai/AIFeedback";
 import BlueprintGraph from "./BlueprintGraph";
 
 type Props = { params: Promise<{ blueprintId: string }> };
@@ -60,6 +61,13 @@ export default async function BlueprintPage({ params }: Props) {
               <span className="font-semibold">Why this is not generic: </span>
               {graph.uniqueAngle}
             </p>
+          )}
+
+          {!blueprint.used_fallback && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-[13px] text-[#626260]">Is this project idea useful?</p>
+              <AIFeedback feature="generate_blueprint" targetId={blueprint.id} />
+            </div>
           )}
 
           {/* Input echo */}

@@ -1,0 +1,16 @@
+[Unit]
+Description=Mentora code runner (Piston-compatible, one container per job)
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+User=mentora-runner
+Group=docker
+# RUNNER_TOKEN=<same value as CODE_RUNNER_TOKEN in the app>
+EnvironmentFile=/etc/mentora-runner.env
+ExecStart=/usr/bin/node /opt/mentora-runner/server.mjs
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

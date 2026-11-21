@@ -2,22 +2,25 @@
 
 import { useState, useTransition } from "react";
 import { CodeEditor } from "@/components/practice/CodeEditor";
+import { EvaluationResults } from "@/components/practice/EvaluationResults";
+import { CREDIT_COSTS } from "@/lib/credits/config";
 import type { EvaluationResult } from "@/types";
 
 type Props = {
   challengeId: string;
   starterCode: string;
   language: string;
-  status: string;
   existingResult: EvaluationResult | null;
+  /** Code from the last submit, so a reload doesn't lose work. */
+  lastSubmission: string | null;
 };
 
-const STEPS = [
-  "Reading your code…",
-  "Running test cases…",
-  "Checking code style…",
-  "Writing feedback…",
-];
+type Mode = "run" | "submit";
+
+const STEPS: Record<Mode, string[]> = {
+  run: ["Compiling…", "Running examples…"],
+  submit: ["Compiling…", "Running all tests…", "Reviewing code style…", "Writing feedback…"],
+};
 
 function Spinner() {
   return (
@@ -28,75 +31,49 @@ function Spinner() {
   );
 }
 
-function ScoreBar({ label, score }: { label: string; score: number }) {
-  const color = score >= 80 ? "#0bdf50" : score >= 50 ? "#ff5600" : "#c41c1c";
-  return (
-    <div>
-      <div className="mb-1 flex justify-between text-[11px]">
-        <span className="text-[#9c9fa5]">{label}</span>
-        <span className="font-medium text-[#111111]">{score}%</span>
-      </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#2d2d2d]">
-        <div className="h-1.5 rounded-full transition-all duration-500" style={{ width: `${score}%`, backgroundColor: color }} />
-      </div>
-    </div>
-  );
-}
-
-export default function ChallengeEditor({
-  challengeId,
-  starterCode,
-  language,
-  existingResult,
-}: Props) {
-  const [code, setCode] = useState(starterCode);
+export default function ChallengeEditor({ challengeId, starterCode, language, existingResult, lastSubmission }: Props) {
+  const [code, setCode] = useState(lastSubmission ?? starterCode);
   const [result, setResult] = useState<EvaluationResult | null>(existingResult);
+  const [resultMode, setResultMode] = useState<Mode>("submit");
   const [xpEarned, setXpEarned] = useState(0);
   const [newBadges, setNewBadges] = useState<string[]>([]);
   const [isPending, startTransition] = useTransition();
+  const [activeMode, setActiveMode] = useState<Mode | null>(null);
   const [stepIdx, setStepIdx] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [showResults, setShowResults] = useState(!!existingResult);
 
-  function handleSubmit() {
+  function evaluate(mode: Mode) {
     setError(null);
     setStepIdx(0);
-
-    const interval = setInterval(() => {
-      setStepIdx((i) => Math.min(i + 1, STEPS.length - 1));
-    }, 2500);
+    setActiveMode(mode);
+    const interval = setInterval(() => setStepIdx((i) => Math.min(i + 1, STEPS[mode].length - 1)), 2500);
 
     startTransition(async () => {
       try {
         const res = await fetch("/api/practice/evaluate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ challengeId, code }),
+          body: JSON.stringify({ challengeId, code, mode }),
         });
-
-        clearInterval(interval);
-
-        if (!res.ok) {
-          const data = await res.json() as { queued?: boolean; error?: string };
-          if (data.queued) {
-            setError("Evaluation queued — check back in a moment.");
-            return;
-          }
-          throw new Error(data.error ?? "Evaluation failed");
-        }
-
-        const data = await res.json() as {
-          result: EvaluationResult;
-          xp_earned: number;
-          new_badges: string[];
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          result?: EvaluationResult;
+          xp_earned?: number;
+          new_badges?: string[];
         };
+        if (!res.ok || !data.result) throw new Error(data.error ?? "Evaluation failed");
+
         setResult(data.result);
-        setXpEarned(data.xp_earned);
+        setResultMode(mode);
+        setXpEarned(data.xp_earned ?? 0);
         setNewBadges(data.new_badges ?? []);
         setShowResults(true);
       } catch (e) {
-        clearInterval(interval);
         setError(e instanceof Error ? e.message : "Failed to evaluate code");
+      } finally {
+        clearInterval(interval);
+        setActiveMode(null);
       }
     });
   }
@@ -104,34 +81,43 @@ export default function ChallengeEditor({
   return (
     <div className="flex h-[55%] w-full flex-col md:h-full md:w-1/2" style={{ background: "#1e1e1e" }}>
       {/* Editor toolbar */}
-      <div className="flex shrink-0 items-center justify-between px-4 py-2.5" style={{ borderBottom: "1px solid #2d2d2d" }}>
+      <div className="flex shrink-0 items-center justify-between gap-2 px-4 py-2.5" style={{ borderBottom: "1px solid #2d2d2d" }}>
         <div className="flex items-center gap-2">
-          {/* Traffic-light dots */}
           <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
           <span className="h-3 w-3 rounded-full bg-[#ffbd2e]" />
           <span className="h-3 w-3 rounded-full bg-[#28c840]" />
           <span className="ml-3 text-[11px] font-medium text-[#888]">{language}</span>
         </div>
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={isPending}
-          className="flex items-center gap-2 rounded-[6px] bg-[#ff5600] px-4 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-[#e04e00] disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          {isPending ? (
-            <>
+        <div className="flex items-center gap-2">
+          {isPending && activeMode && (
+            <span className="flex items-center gap-1.5 text-[11px] text-[#aaa]" aria-live="polite">
               <Spinner />
-              <span>{STEPS[stepIdx]}</span>
-            </>
-          ) : (
-            <>
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
-                <polygon points="2,1 11,6 2,11" fill="currentColor" />
-              </svg>
-              Run & Submit
-            </>
+              {STEPS[activeMode][stepIdx]}
+            </span>
           )}
-        </button>
+          <button
+            type="button"
+            onClick={() => evaluate("run")}
+            disabled={isPending}
+            title="Run against the example tests (free)"
+            className="flex items-center gap-1.5 rounded-[6px] border border-[#444] px-3 py-1.5 text-[12px] font-medium text-[#ddd] transition-colors hover:border-[#888] hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
+              <polygon points="2,1 11,6 2,11" fill="currentColor" />
+            </svg>
+            Run
+          </button>
+          <button
+            type="button"
+            onClick={() => evaluate("submit")}
+            disabled={isPending}
+            title="Run every test, including hidden ones, and get a code review"
+            className="flex items-center gap-1.5 rounded-[6px] bg-[#ff5600] px-3.5 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-[#e04e00] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Submit
+            <span className="text-[10px] font-normal opacity-75">{CREDIT_COSTS.evaluate_submission} cr</span>
+          </button>
+        </div>
       </div>
 
       {/* CodeMirror editor */}
@@ -139,81 +125,30 @@ export default function ChallengeEditor({
         <CodeEditor value={code} onChange={setCode} language={language} />
       </div>
 
-      {/* Error bar */}
       {error && (
-        <div className="shrink-0 px-4 py-2.5 text-[12px] text-[#ff8a80]" style={{ background: "#3b1a1a", borderTop: "1px solid #5a1a1a" }}>
+        <div role="alert" className="shrink-0 px-4 py-2.5 text-[12px] text-[#ff8a80]" style={{ background: "#3b1a1a", borderTop: "1px solid #5a1a1a" }}>
           {error}
         </div>
       )}
 
-      {/* Results panel */}
       {result && showResults && (
-        <div className="shrink-0 overflow-y-auto" style={{ maxHeight: "260px", borderTop: "1px solid #2d2d2d", background: "#252526" }}>
-          {/* Results header */}
-          <div className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: "1px solid #2d2d2d" }}>
-            <div className="flex items-center gap-2.5">
-              <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${result.passed ? "bg-[#0bdf50]/20 text-[#0bdf50]" : "bg-[#c41c1c]/20 text-[#ff6b6b]"}`}>
-                {result.passed ? "✓" : "✗"}
-              </span>
-              <span className="text-[12px] font-medium text-white">
-                {result.passed ? "All tests passed" : "Not passing yet"}
-              </span>
-              {xpEarned > 0 && (
-                <span className="rounded-full bg-[#ff5600]/20 px-2 py-0.5 text-[11px] font-medium text-[#ff5600]">
-                  +{xpEarned} XP
-                </span>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowResults(false)}
-              className="text-[#555] hover:text-[#888] transition-colors"
-              aria-label="Close results"
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
-                <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Scores + feedback */}
-          <div className="space-y-3 px-4 py-3">
-            {result.used_fallback && (
-              <div className="flex items-start gap-2 rounded-[6px] border border-[#ff5600]/40 bg-[#ff5600]/10 px-3 py-2 text-[11px] text-[#ffa472]">
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden className="mt-0.5 shrink-0">
-                  <path d="M8 2v5M8 11h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5" />
-                </svg>
-                <span>Fallback evaluation — the AI evaluator was unavailable. Scores are placeholders. Resubmit to get real feedback.</span>
-              </div>
-            )}
-            <ScoreBar label="Correctness" score={result.correctness_score} />
-            <ScoreBar label="Code Style" score={result.style_score} />
-
-            <div className="rounded-[6px] p-3" style={{ background: "#1e1e1e" }}>
-              <p className="mb-1.5 text-[10px] font-medium uppercase tracking-widest text-[#555]">AI Feedback</p>
-              <p className="text-[12px] leading-relaxed text-[#ccc]">{result.feedback}</p>
-            </div>
-
-            {newBadges.length > 0 && (
-              <div className="space-y-1.5">
-                {newBadges.map((badge) => (
-                  <div key={badge} className="flex items-center gap-2 rounded-[6px] bg-[#2a2000] px-3 py-2 text-[12px] font-medium text-[#fbbf24]">
-                    <span>🏅</span> New badge: {badge}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+        <div className="shrink-0 overflow-y-auto" style={{ maxHeight: "50%", borderTop: "1px solid #2d2d2d", background: "#252526" }}>
+          <EvaluationResults
+            result={result}
+            mode={resultMode}
+            challengeId={challengeId}
+            xpEarned={xpEarned}
+            newBadges={newBadges}
+            onClose={() => setShowResults(false)}
+          />
         </div>
       )}
 
-      {/* Re-open results button if closed */}
       {result && !showResults && (
         <button
           type="button"
           onClick={() => setShowResults(true)}
-          className="shrink-0 px-4 py-2 text-[11px] font-medium text-[#888] hover:text-white transition-colors text-left"
+          className="shrink-0 px-4 py-2 text-left text-[11px] font-medium text-[#888] transition-colors hover:text-white"
           style={{ borderTop: "1px solid #2d2d2d" }}
         >
           Show last results ↑

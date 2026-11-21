@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { Notification, NotificationType } from "@/types";
 
 /**
@@ -13,8 +14,8 @@ export async function notify(
   href?: string
 ): Promise<void> {
   try {
-    const supabase = await createClient();
-    await supabase
+    // Server-side only: callers have already authenticated the student.
+    await createAdminClient()
       .from("notifications")
       .insert({ student_id: studentId, type, title, body, href: href ?? null });
   } catch {

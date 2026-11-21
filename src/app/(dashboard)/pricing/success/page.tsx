@@ -5,10 +5,10 @@ import { getPack, packTotal } from "@/lib/credits/config";
 
 export const dynamic = "force-dynamic";
 
-type Props = { searchParams: Promise<{ pack?: string }> };
+type Props = { searchParams: Promise<{ pack?: string; limited?: string }> };
 
 export default async function PricingSuccessPage({ searchParams }: Props) {
-  const { pack: packId } = await searchParams;
+  const { pack: packId, limited } = await searchParams;
   const user = await requireUser();
   const credits = await getBalance(user.id);
   const pack = packId ? getPack(packId) : undefined;
@@ -17,13 +17,17 @@ export default async function PricingSuccessPage({ searchParams }: Props) {
     <div className="flex min-h-full items-center justify-center bg-[#f5f1ec] p-6">
       <div className="w-full max-w-sm rounded-[12px] border border-[#d3cec6] bg-white px-8 py-12 text-center shadow-sm">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#e8f6ee] text-[20px] text-[#0f8a4a]">
-          ✓
+          {limited ? "!" : "✓"}
         </div>
 
-        <h1 className="mt-5 text-[20px] font-medium text-[#111111]">Credits added</h1>
+        <h1 className="mt-5 text-[20px] font-medium text-[#111111]">
+          {limited ? "Daily demo limit reached" : "Demo credits added"}
+        </h1>
 
         <p className="mt-2 text-[14px] text-[#626260]">
-          {pack
+          {limited
+            ? "Demo top-ups are limited to 3 packs per day. Nothing was added this time."
+            : pack
             ? `${packTotal(pack).toLocaleString()} credits from the ${pack.name} pack are now on your account.`
             : "Your credits are now on your account."}
         </p>

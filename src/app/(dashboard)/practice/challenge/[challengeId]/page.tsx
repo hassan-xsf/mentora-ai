@@ -64,6 +64,19 @@ export default async function ChallengePage({ params }: Props) {
               <AIFallbackBadge label="Fallback challenge" />
             </div>
           )}
+          {challenge.title && (
+            <h1 className="mb-3 text-[20px] font-medium tracking-[-0.3px] text-[#111111]">{challenge.title}</h1>
+          )}
+          {challenge.first_passed_at && (
+            <p className="mb-3 inline-flex rounded-full border border-[#0bdf50]/40 bg-[#0bdf50]/10 px-2.5 py-0.5 text-[11px] font-medium text-[#047a2b]">
+              Solved · +{challenge.xp_awarded} XP earned
+            </p>
+          )}
+          {!challenge.validated && (challenge.examples?.length ?? 0) > 0 && (
+            <p className="mb-4 rounded-[8px] border border-[#ff5600]/30 bg-[#ff5600]/5 px-3 py-2 text-[12px] text-[#b83d00]">
+              These test cases could not be verified against a reference solution. If a test looks wrong, it may be.
+            </p>
+          )}
           <div className="space-y-4">
             {paragraphs.map((para, i) => {
               // Detect example blocks (lines starting with Input: / Output: / Example)
@@ -83,12 +96,31 @@ export default async function ChallengePage({ params }: Props) {
             })}
           </div>
 
-          {/* Previous evaluation note */}
-          {challenge.evaluation_result && (
-            <div className="mt-6 rounded-[8px] border border-[#d3cec6] bg-[#f5f1ec] p-4">
-              <p className="mb-1 text-[11px] font-medium uppercase tracking-widest text-[#9c9fa5]">Previous result</p>
-              <p className="text-[13px] text-[#626260]">{challenge.evaluation_result.feedback}</p>
+          {/* Visible examples; hidden tests stay on the server */}
+          {(challenge.examples?.length ?? 0) > 0 ? (
+            <div className="mt-6 space-y-3">
+              <p className="text-[11px] font-medium uppercase tracking-widest text-[#9c9fa5]">Examples</p>
+              {challenge.examples!.map((ex, i) => (
+                <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div>
+                    <p className="mb-1 text-[11px] text-[#9c9fa5]">Input {i + 1}</p>
+                    <pre className="overflow-x-auto rounded-[8px] border border-[#d3cec6] bg-[#f5f1ec] px-3 py-2 font-mono text-[12px] text-[#111111] whitespace-pre-wrap">{ex.input || " "}</pre>
+                  </div>
+                  <div>
+                    <p className="mb-1 text-[11px] text-[#9c9fa5]">Output {i + 1}</p>
+                    <pre className="overflow-x-auto rounded-[8px] border border-[#d3cec6] bg-[#f5f1ec] px-3 py-2 font-mono text-[12px] text-[#111111] whitespace-pre-wrap">{ex.output || " "}</pre>
+                  </div>
+                </div>
+              ))}
+              <p className="text-[12px] text-[#9c9fa5]">
+                <strong className="font-medium text-[#626260]">Run</strong> checks these examples for free.{" "}
+                <strong className="font-medium text-[#626260]">Submit</strong> also runs hidden tests and earns XP the first time all pass.
+              </p>
             </div>
+          ) : (
+            <p className="mt-6 rounded-[8px] border border-[#d3cec6] bg-[#f5f1ec] px-3 py-2 text-[12px] text-[#626260]">
+              This challenge was created before automatic testing. Generate a new one to run your code against test cases.
+            </p>
           )}
         </div>
 
@@ -108,8 +140,8 @@ export default async function ChallengePage({ params }: Props) {
         challengeId={challengeId}
         starterCode={challenge.starter_code}
         language={challenge.language}
-        status={challenge.status}
-        existingResult={challenge.evaluation_result}
+        existingResult={challenge.evaluation_result?.tests_total != null ? challenge.evaluation_result : null}
+        lastSubmission={challenge.student_submission}
       />
     </div>
   );

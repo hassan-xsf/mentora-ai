@@ -2,7 +2,7 @@
 
 import { chatCompletion } from "@/lib/ai/stream";
 import { parseJSONLoose } from "@/lib/ai/json";
-import { createClient } from "@/lib/supabase/server";
+import { reportFallback } from "@/lib/ai/telemetry";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/auth/session";
 import { spendCredits, refundCredits } from "@/lib/credits/credits";
@@ -226,14 +226,27 @@ Rules:
 - Output raw JSON only, starting with { and ending with }.`;
 }
 
+const INPUT_KEYS = ["stack", "experience", "time", "goal", "interests", "teamSize", "constraints"] as const;
+
+/** Client-supplied form values go into the prompt and the DB: plain, short strings only. */
+function cleanInputs(raw: BlueprintInputs): BlueprintInputs {
+  const out = {} as BlueprintInputs;
+  for (const k of INPUT_KEYS) {
+    const v = typeof raw?.[k] === "string" ? raw[k] : "";
+    out[k] = v.replace(/[\u0000-\u001f\u007f-\u009f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
+  }
+  return out;
+}
+
 export async function generateBlueprint(
-  inputs: BlueprintInputs
+  rawInputs: BlueprintInputs
 ): Promise<{ blueprintId: string }> {
   const user = await requireUser();
-  const supabase = await createClient();
   const admin = createAdminClient();
+  const inputs = cleanInputs(rawInputs);
+  if (!inputs.stack) throw new Error("Tell us which tech stack you know.");
 
-  await supabase.from("students").upsert(
+  await admin.from("students").upsert(
     {
       id: user.id,
       email: user.email ?? "",
@@ -250,7 +263,10 @@ export async function generateBlueprint(
   let usedFallback = false;
 
   try {
-    const raw = await chatCompletion(buildPrompt(inputs));
+    const raw = await chatCompletion(buildPrompt(inputs), {
+      feature: "generate_blueprint",
+      studentId: user.id,
+    });
     const parsed = parseJSONLoose<{
       title?: string;
       tagline?: string;
@@ -276,6 +292,9 @@ export async function generateBlueprint(
     tagline = fb.tagline;
     graph = fb.graph;
     usedFallback = true;
+    // Canned content is free.
+    await refundCredits(user.id, "generate_blueprint").catch(() => undefined);
+    await reportFallback("generate_blueprint", err instanceof Error ? err.message : String(err));
   }
 
   const { data, error } = await admin
@@ -293,8 +312,8 @@ export async function generateBlueprint(
 
   if (error || !data) {
     console.error("[generate-blueprint] insert error:", error);
-    await refundCredits(user.id, "generate_blueprint").catch(() => undefined);
-    throw new Error(error?.message ?? "Failed to save blueprint");
+    if (!usedFallback) await refundCredits(user.id, "generate_blueprint").catch(() => undefined);
+    throw new Error("Could not save your blueprint. Your credits were not charged — please try again.");
   }
 
   return { blueprintId: data.id };

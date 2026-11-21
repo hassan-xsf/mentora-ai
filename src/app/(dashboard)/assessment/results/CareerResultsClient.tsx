@@ -16,8 +16,14 @@ function fitBar(score: number) {
   return { color };
 }
 
+export type ExplainedCareer = CareerSuggestionResult & {
+  /** Deterministic: profile dimensions this role leans on where the student scored strong / weak. */
+  matched: string[];
+  weaker: string[];
+};
+
 type Props = {
-  suggestions: CareerSuggestionResult[];
+  suggestions: ExplainedCareer[];
 };
 
 export default function CareerResultsClient({ suggestions }: Props) {
@@ -26,13 +32,13 @@ export default function CareerResultsClient({ suggestions }: Props) {
       variants={staggerContainer}
       initial="hidden"
       animate="visible"
-      className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+      className="grid gap-4 sm:grid-cols-2"
     >
       {suggestions.map((career, idx) => {
         const { color } = fitBar(career.fit_score);
         return (
           <motion.div
-            key={idx}
+            key={`${idx}-${career.title}`}
             variants={fadeInUp}
             className="flex flex-col rounded-[12px] border border-[#d3cec6] bg-white p-6 transition-shadow hover:shadow-[0_2px_16px_rgba(17,17,17,0.06)]"
           >
@@ -84,6 +90,28 @@ export default function CareerResultsClient({ suggestions }: Props) {
                 {career.why_good_fit}
               </p>
             </div>
+
+            {(career.matched.length > 0 || career.weaker.length > 0) && (
+              <div className="mb-4 flex flex-wrap gap-1.5 text-[11px]">
+                {career.matched.map((d) => (
+                  <span key={d} className="rounded-full border border-[#0bdf50]/30 bg-[#0bdf50]/10 px-2 py-0.5 font-medium text-[#047a2b]">
+                    Matched on {d}
+                  </span>
+                ))}
+                {career.weaker.map((d) => (
+                  <span key={d} className="rounded-full border border-[#d3cec6] bg-[#ebe7e1] px-2 py-0.5 font-medium text-[#626260]">
+                    Weaker on {d}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {career.trade_off && (
+              <p className="mb-5 border-l-2 border-[#ff5600] pl-3 text-[12px] leading-relaxed text-[#626260]">
+                <span className="font-medium text-[#111111]">Trade-off: </span>
+                {career.trade_off}
+              </p>
+            )}
 
             <GenerateRoadmapButton
               careerTitle={career.title}

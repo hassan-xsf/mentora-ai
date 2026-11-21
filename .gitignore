@@ -42,3 +42,9 @@ KEYS.md
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# internship scraper output
+/scraper/internships/out/
+
+.vercel
+.env*

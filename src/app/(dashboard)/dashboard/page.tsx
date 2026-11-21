@@ -5,7 +5,12 @@ import { getProgressRecord, getActivityData } from "@/lib/db/progress";
 import { getStudentProfile, getStudentBadges } from "@/lib/db/practice";
 import { ActivityChart } from "@/components/progress/ActivityChart";
 import { AIFallbackBadge } from "@/components/ui/AIFallbackBadge";
-import type { Roadmap, Badge, ActivityDataPoint, ProgressRecord } from "@/types";
+import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
+import { ReviewDueCard } from "@/components/adaptive/ReviewDueCard";
+import { createClient } from "@/lib/supabase/server";
+import { getUnlockedSections } from "@/lib/db/milestone-tests";
+import { pickNextAction, type NextAction } from "./next-action";
+import type { Roadmap, Badge } from "@/types";
 
 // ─── XP level helpers ─────────────────────────────────────────────────────────
 
@@ -160,38 +165,55 @@ function BadgeChip({ badge }: { badge: Badge }) {
   );
 }
 
-// ─── Inline mini chart (last 14 days) ────────────────────────────────────────
-
-function MiniChart({ data }: { data: ActivityDataPoint[] }) {
-  const last14 = data.slice(-14);
-  const maxActivity = Math.max(...last14.map((d) => d.challenges_completed + d.nodes_completed), 1);
-  const H = 48;
-
+function NextActionCard({ action }: { action: NextAction }) {
   return (
-    <svg width="100%" viewBox={`0 0 ${last14.length * 14} ${H + 16}`} preserveAspectRatio="none" aria-hidden>
-      {last14.map((pt, i) => {
-        const actTotal = pt.challenges_completed + pt.nodes_completed;
-        const h = Math.max(2, Math.round((actTotal / maxActivity) * H));
-        return (
-          <g key={pt.date}>
-            <rect
-              x={i * 14}
-              y={H - h}
-              width={10}
-              height={h}
-              fill={actTotal > 0 ? "#111111" : "#ebe7e1"}
-              rx={2}
-            />
-            {i % 7 === 0 && (
-              <text x={i * 14 + 5} y={H + 14} fontSize={7} fill="#9c9fa5" textAnchor="middle">
-                {pt.date.slice(5)}
-              </text>
-            )}
-          </g>
-        );
-      })}
-    </svg>
+    <div className="flex flex-col gap-4 rounded-[12px] border border-[#111111] bg-[#111111] px-6 py-5 text-white sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+      <div className="min-w-0">
+        <p className="truncate text-[11px] font-medium uppercase tracking-widest text-white/40">
+          Next up · {action.eyebrow}
+        </p>
+        <h2 className="mt-1 text-[20px] font-medium leading-snug tracking-[-0.3px]">{action.title}</h2>
+        <p className="mt-1 text-[14px] text-white/60">{action.body}</p>
+      </div>
+      <Link
+        href={action.href}
+        className="inline-flex h-10 shrink-0 items-center justify-center rounded-[8px] bg-[#ff5600] px-5 text-[14px] font-medium text-white transition-colors hover:bg-[#e04d00]"
+      >
+        {action.cta} →
+      </Link>
+    </div>
   );
+}
+
+/** Nodes + unlocked sections of the most recent unfinished roadmap, for the next action. */
+async function getActiveRoadmap(roadmaps: Roadmap[], studentId: string) {
+  const roadmap = roadmaps.find((r) => r.completion_percentage < 100);
+  if (!roadmap) return null;
+  const supabase = await createClient();
+  const { data: nodes } = await supabase
+    .from("nodes")
+    .select("id, parent_id, title, section_index, position")
+    .eq("roadmap_id", roadmap.id);
+  const nodeIds = (nodes ?? []).map((n) => n.id);
+  const [{ data: done }, unlocked] = await Promise.all([
+    nodeIds.length
+      ? supabase.from("node_completions").select("node_id").eq("student_id", studentId).eq("is_completed", true).in("node_id", nodeIds)
+      : Promise.resolve({ data: [] as { node_id: string }[] }),
+    getUnlockedSections(studentId, roadmap.id),
+  ]);
+  const doneIds = new Set((done ?? []).map((d) => d.node_id));
+  return {
+    roadmap,
+    nodes: (nodes ?? []).map((n) => ({ ...n, is_completed: doneIds.has(n.id) })),
+    unlocked,
+  };
+}
+
+/** True until the tour is finished or skipped. Before migration 016 the select errors, so it stays true and the tour's own local flag stops repeats. */
+async function needsOnboarding(studentId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("students").select("onboarded_at").eq("id", studentId).maybeSingle();
+  return error ? true : !data?.onboarded_at;
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -199,13 +221,15 @@ function MiniChart({ data }: { data: ActivityDataPoint[] }) {
 export default async function DashboardPage() {
   const user = await requireUser();
 
-  const [roadmaps, profile, progress, activityData, badges] = await Promise.all([
+  const [roadmaps, profile, progress, activityData, badges, showTour] = await Promise.all([
     getRoadmapsByStudent(user.id),
     getStudentProfile(user.id),
     getProgressRecord(user.id),
     getActivityData(user.id, 30),
     getStudentBadges(user.id),
+    needsOnboarding(user.id),
   ]);
+  const nextAction = pickNextAction(roadmaps, await getActiveRoadmap(roadmaps, user.id));
 
   const firstName = profile.full_name?.split(" ")[0] ?? "there";
   const activeDays = activityData.filter((d) => d.challenges_completed > 0 || d.nodes_completed > 0).length;
@@ -215,14 +239,24 @@ export default async function DashboardPage() {
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10 space-y-6 sm:space-y-8">
 
         {/* Page header */}
-        <div>
-          <p className="text-[11px] font-medium uppercase tracking-widest text-[#9c9fa5]">Overview</p>
-          <h1 className="mt-1 text-[26px] sm:text-[32px] font-medium leading-[1.15] tracking-[-0.8px] text-[#111111]">
-            Hey, {firstName} 👋
-          </h1>
-          <p className="mt-1.5 text-[15px] text-[#626260]">
-            Here&rsquo;s where you stand across all your roadmaps.
-          </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-widest text-[#9c9fa5]">Overview</p>
+            <h1 className="mt-1 text-[26px] sm:text-[32px] font-medium leading-[1.15] tracking-[-0.8px] text-[#111111]">
+              Hey, {firstName} 👋
+            </h1>
+            <p className="mt-1.5 text-[15px] text-[#626260]">
+              Here&rsquo;s where you stand across all your roadmaps.
+            </p>
+          </div>
+          <div className="mt-1 shrink-0">
+            <OnboardingTour autoStart={showTour} />
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
+          <NextActionCard action={nextAction} />
+          <ReviewDueCard studentId={user.id} />
         </div>
 
         {/* XP + Streak bar */}
@@ -251,6 +285,61 @@ export default async function DashboardPage() {
             sub="milestone tests"
             accent
           />
+        </div>
+
+        {/* Roadmaps section */}
+        <div>
+          <div className="mb-4 flex items-center justify-between">
+            <div data-tour="roadmaps">
+              <p className="text-[11px] font-medium uppercase tracking-widest text-[#9c9fa5]">Learning paths</p>
+              <h2 className="mt-0.5 text-[18px] font-medium tracking-[-0.2px] text-[#111111]">
+                My roadmaps
+              </h2>
+            </div>
+            <Link
+              href="/assessment"
+              className="flex h-8 items-center gap-1.5 rounded-[6px] border border-[#d3cec6] bg-white px-3 text-[12px] font-medium text-[#626260] transition-colors hover:bg-[#f5f1ec] hover:text-[#111111]"
+            >
+              <span>+ New</span>
+            </Link>
+          </div>
+
+          {roadmaps.length === 0 ? (
+            <div className="rounded-[16px] border border-[#d3cec6] bg-white px-5 py-10 sm:px-8 sm:py-14 text-center">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f5f1ec] text-xl">
+                🗺️
+              </div>
+              <h3 className="text-[18px] font-medium tracking-[-0.2px] text-[#111111]">
+                No roadmaps yet
+              </h3>
+              <p className="mx-auto mt-2 max-w-xs text-[14px] leading-relaxed text-[#626260]">
+                Take the career assessment to get AI-generated learning roadmaps.
+              </p>
+              <Link
+                href="/assessment"
+                className="mt-5 inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#ff5600] px-5 text-[14px] font-medium text-white transition-colors hover:bg-[#e04d00]"
+              >
+                Start Career Assessment →
+              </Link>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {roadmaps.map((roadmap) => (
+                <RoadmapCard key={roadmap.id} roadmap={roadmap} />
+              ))}
+              <Link
+                href="/assessment"
+                className="flex flex-col items-center justify-center gap-2 rounded-[12px] border border-dashed border-[#d3cec6] px-6 py-10 text-center transition-colors hover:border-[#111111] hover:bg-white group"
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[#d3cec6] text-[18px] text-[#9c9fa5] transition-colors group-hover:border-[#111111] group-hover:text-[#111111]">
+                  +
+                </span>
+                <span className="text-[13px] font-medium text-[#9c9fa5] transition-colors group-hover:text-[#111111]">
+                  New roadmap
+                </span>
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* Activity + sidebar — two-column layout on lg */}
@@ -323,60 +412,6 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        {/* Roadmaps section */}
-        <div>
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-widest text-[#9c9fa5]">Learning paths</p>
-              <h2 className="mt-0.5 text-[18px] font-medium tracking-[-0.2px] text-[#111111]">
-                My roadmaps
-              </h2>
-            </div>
-            <Link
-              href="/assessment"
-              className="flex h-8 items-center gap-1.5 rounded-[6px] border border-[#d3cec6] bg-white px-3 text-[12px] font-medium text-[#626260] transition-colors hover:bg-[#f5f1ec] hover:text-[#111111]"
-            >
-              <span>+ New</span>
-            </Link>
-          </div>
-
-          {roadmaps.length === 0 ? (
-            <div className="rounded-[16px] border border-[#d3cec6] bg-white px-5 py-10 sm:px-8 sm:py-14 text-center">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f5f1ec] text-xl">
-                🗺️
-              </div>
-              <h3 className="text-[18px] font-medium tracking-[-0.2px] text-[#111111]">
-                No roadmaps yet
-              </h3>
-              <p className="mx-auto mt-2 max-w-xs text-[14px] leading-relaxed text-[#626260]">
-                Take the career assessment to get AI-generated learning roadmaps.
-              </p>
-              <Link
-                href="/assessment"
-                className="mt-5 inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#ff5600] px-5 text-[14px] font-medium text-white transition-colors hover:bg-[#e04d00]"
-              >
-                Start Career Assessment →
-              </Link>
-            </div>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {roadmaps.map((roadmap) => (
-                <RoadmapCard key={roadmap.id} roadmap={roadmap} />
-              ))}
-              <Link
-                href="/assessment"
-                className="flex flex-col items-center justify-center gap-2 rounded-[12px] border border-dashed border-[#d3cec6] px-6 py-10 text-center transition-colors hover:border-[#111111] hover:bg-white group"
-              >
-                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[#d3cec6] text-[18px] text-[#9c9fa5] transition-colors group-hover:border-[#111111] group-hover:text-[#111111]">
-                  +
-                </span>
-                <span className="text-[13px] font-medium text-[#9c9fa5] transition-colors group-hover:text-[#111111]">
-                  New roadmap
-                </span>
-              </Link>
-            </div>
-          )}
-        </div>
 
       </div>
     </div>

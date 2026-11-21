@@ -1,273 +1,18 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import type { AssessmentQuestion, AssessmentAnswer } from "@/types";
-
-/**
- * Core questions always asked (skill level, constraints, direction) plus a pool
- * sampled per attempt, so a second assessment isn't the same 10 prompts again.
- * Each question is written to produce a signal the career model can act on —
- * evidence of what the student has actually done, not just what sounds appealing.
- */
-const CORE_QUESTIONS: AssessmentQuestion[] = [
-  {
-    id: "coding_level",
-    question: "What is the most complex thing you have personally built with code?",
-    type: "single_choice",
-    options: [
-      "Nothing yet — I have not written code outside a tutorial",
-      "Small scripts or exercises that solve one problem",
-      "A working app or site I finished on my own",
-      "A multi-part project with a database, users, or an API",
-      "Something used by real people, or work I was paid for",
-    ],
-  },
-  {
-    id: "math_comfort",
-    question: "How far did you get with maths, and how did it feel?",
-    type: "single_choice",
-    options: [
-      "I avoid maths and want a path with as little as possible",
-      "I can handle it when it has a clear practical purpose",
-      "Comfortable with statistics and probability",
-      "Comfortable with calculus and linear algebra",
-      "Maths is a strength — proofs and theory are enjoyable",
-    ],
-  },
-  {
-    id: "energy_source",
-    question: "Which of these tasks would you happily do for a whole day?",
-    type: "multi_choice",
-    options: [
-      "Chasing down why something is broken until it works",
-      "Making an interface look and feel exactly right",
-      "Digging through a messy dataset for the real story",
-      "Designing how parts of a large system fit together",
-      "Automating a boring manual process away",
-      "Talking to users and turning their needs into a plan",
-      "Breaking into something to prove it is not secure",
-      "Explaining a hard concept so others finally get it",
-    ],
-  },
-  {
-    id: "drain_source",
-    question: "Which of these would drain you fastest?",
-    type: "multi_choice",
-    options: [
-      "Long meetings and stakeholder alignment",
-      "Pixel-level visual polish",
-      "Heavy maths and statistics",
-      "Being on call for production incidents",
-      "Reading dense documentation and specifications",
-      "Repetitive, well-defined tasks with no ambiguity",
-      "Presenting and persuading in front of a group",
-    ],
-  },
-  {
-    id: "time_commitment",
-    question: "Realistically, how many hours a week can you study?",
-    type: "single_choice",
-    options: [
-      "Under 5 — I need a slow, steady path",
-      "5-10 hours alongside other commitments",
-      "10-20 hours, this is a serious focus",
-      "20+ hours, I am going at this full time",
-    ],
-  },
-  {
-    id: "horizon",
-    question: "When do you need to be job-ready?",
-    type: "single_choice",
-    options: [
-      "Within 6 months — fastest route to employable",
-      "About a year",
-      "2+ years, I am still studying",
-      "No deadline — depth matters more than speed",
-    ],
-  },
-  {
-    id: "learning_style",
-    question: "How do you actually learn best?",
-    type: "single_choice",
-    options: [
-      "Building projects and looking things up as I hit them",
-      "Structured courses worked through in order",
-      "Reading documentation and books first, then applying",
-      "Video walkthroughs I can follow along with",
-      "Working through problem sets and challenges",
-    ],
-  },
-  {
-    id: "motivation",
-    question: "What would make a job feel worth it five years in?",
-    type: "single_choice",
-    options: [
-      "Strong pay and financial security",
-      "Deep technical mastery and respect for the craft",
-      "Building products that people visibly use",
-      "Autonomy and flexibility over my time",
-      "Work that has a social or scientific impact",
-      "Leading teams and shaping direction",
-    ],
-  },
-];
-
-const POOL_QUESTIONS: AssessmentQuestion[] = [
-  {
-    id: "ambiguity",
-    question: "You are handed a vague problem with no clear right answer. That feels…",
-    type: "scale",
-    options: [
-      "Stressful — I want clear requirements",
-      "Uncomfortable but manageable",
-      "Fine, I will find a direction",
-      "Good — this is where I do my best work",
-      "Ideal — ambiguity is the interesting part",
-    ],
-  },
-  {
-    id: "debug_patience",
-    question: "A bug has resisted you for three hours. What is your honest reaction?",
-    type: "single_choice",
-    options: [
-      "Frustrated — I would want to hand it off",
-      "I push on but it wears me down",
-      "I take a break and come back methodically",
-      "I get more stubborn the longer it takes",
-    ],
-  },
-  {
-    id: "visual_sense",
-    question: "How strong is your eye for visual detail and layout?",
-    type: "scale",
-    options: [
-      "Weak — I cannot tell why something looks off",
-      "Below average",
-      "Average — I notice obvious problems",
-      "Strong — bad spacing bothers me",
-      "Very strong — I redesign things in my head",
-    ],
-  },
-  {
-    id: "people_facing",
-    question: "How much of your week do you want spent with other people?",
-    type: "scale",
-    options: [
-      "Almost none — deep solo focus",
-      "Mostly solo with occasional check-ins",
-      "An even split",
-      "Mostly collaborative",
-      "Constant contact — people are the job",
-    ],
-  },
-  {
-    id: "risk_tolerance",
-    question: "Which first job would you take?",
-    type: "single_choice",
-    options: [
-      "Stable large employer, clear ladder, predictable work",
-      "Established mid-size company with room to move",
-      "Early startup — more chaos, more ownership",
-      "Freelance or contract work I source myself",
-      "Research, academia, or an open-source funded role",
-    ],
-  },
-  {
-    id: "domain_pull",
-    question: "Which of these problem spaces genuinely interests you?",
-    type: "multi_choice",
-    options: [
-      "Health and medicine",
-      "Finance and markets",
-      "Games and entertainment",
-      "Climate and energy",
-      "Education",
-      "Robotics and hardware",
-      "Security and privacy",
-      "Developer tools and infrastructure",
-      "No strong preference — the work matters more",
-    ],
-  },
-  {
-    id: "writing",
-    question: "How do you feel about writing — docs, explanations, proposals?",
-    type: "scale",
-    options: [
-      "I avoid it",
-      "I can do it but would rather not",
-      "Neutral",
-      "I am comfortable and reasonably good at it",
-      "It is one of my strengths",
-    ],
-  },
-  {
-    id: "tools_touched",
-    question: "Which of these have you actually used, even briefly?",
-    type: "multi_choice",
-    options: [
-      "Git and GitHub",
-      "A terminal or command line",
-      "HTML and CSS",
-      "Python",
-      "JavaScript or TypeScript",
-      "SQL or a database",
-      "A spreadsheet for real analysis",
-      "Figma or another design tool",
-      "Cloud services (AWS, GCP, Azure)",
-      "None of these yet",
-    ],
-  },
-  {
-    id: "feedback_loop",
-    question: "What kind of progress keeps you going?",
-    type: "single_choice",
-    options: [
-      "Seeing something visible change immediately",
-      "A test suite going green",
-      "A number improving — speed, accuracy, cost",
-      "Someone telling me the thing helped them",
-      "Finally understanding a concept that was opaque",
-    ],
-  },
-  {
-    id: "credential_path",
-    question: "What is your situation with formal credentials?",
-    type: "single_choice",
-    options: [
-      "In a computing or engineering degree now",
-      "In a degree in a different field",
-      "Degree finished, changing direction",
-      "No degree — self-taught route",
-      "Bootcamp or certificate route",
-    ],
-  },
-];
-
-/** Fisher-Yates on a copy; sampling keeps repeat assessments from feeling identical. */
-function sample<T>(items: T[], count: number): T[] {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy.slice(0, count);
-}
-
-function buildQuestions(): AssessmentQuestion[] {
-  // 8 core + 6 sampled = 14, inside the requested 10-20 band.
-  return [...CORE_QUESTIONS, ...sample(POOL_QUESTIONS, 6)];
-}
+import type { BankQuestion } from "@/lib/assessment/validate";
+import { submitAssessment } from "@/app/actions/career-suggestions";
+import { CREDIT_COSTS } from "@/lib/credits/config";
 
 type Props = {
-  questions?: AssessmentQuestion[];
+  /** Already sampled on the server, so SSR and hydration render the same set. */
+  questions: BankQuestion[];
 };
 
-export default function AssessmentForm({ questions: provided }: Props) {
-  // Built once per mount, and only on the client so the sample does not mismatch SSR.
-  const [questions] = useState<AssessmentQuestion[]>(() => provided ?? buildQuestions());
-  const router = useRouter();
+export default function AssessmentForm({ questions }: Props) {
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
 
@@ -305,17 +50,11 @@ export default function AssessmentForm({ questions: provided }: Props) {
   }
 
   function handleSubmit() {
-    startTransition(() => {
-      const assessmentAnswers: AssessmentAnswer[] = questions
-        .filter((q) => answers[q.id] !== undefined)
-        .map((q) => ({
-          question_id: q.id,
-          question: q.question,
-          answer: answers[q.id],
-        }));
-      const params = new URLSearchParams();
-      params.set("answers", JSON.stringify(assessmentAnswers));
-      router.push(`/assessment/results?${params.toString()}`);
+    setError(null);
+    startTransition(async () => {
+      // Success redirects to the saved result; only failures return.
+      const res = await submitAssessment(answers);
+      if (res?.error) setError(res.error);
     });
   }
 
@@ -444,6 +183,12 @@ export default function AssessmentForm({ questions: provided }: Props) {
         )}
       </div>
 
+      {error && (
+        <p role="alert" className="mt-4 rounded-[8px] border border-[#c41c1c]/20 bg-[#c41c1c]/5 px-3 py-2.5 text-[12px] text-[#c41c1c]">
+          {error}
+        </p>
+      )}
+
       {/* Navigation Bar */}
       <div className="mt-6 flex items-center justify-between">
         <button
@@ -471,7 +216,7 @@ export default function AssessmentForm({ questions: provided }: Props) {
                 Analyzing…
               </>
             ) : (
-              "See My Careers →"
+              `See My Careers · ${CREDIT_COSTS.career_suggestions} credits →`
             )}
           </button>
         ) : (

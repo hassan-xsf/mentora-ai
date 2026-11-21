@@ -1,23 +1,40 @@
 import { createClient } from "@/lib/supabase/server";
-import type { CodingChallenge, Badge, EvaluationResult, Student } from "@/types";
+import { createAdminClient } from "@/lib/supabase/admin";
+import type { TestCase } from "@/lib/runner/piston";
+import type { CodingChallenge, Badge, Student } from "@/types";
 
+/** Inserts the challenge and its server-only tests. Caller has authenticated `student_id`. */
 export async function createChallenge(data: {
   student_id: string;
   language: string;
   topic: string;
   difficulty: "easy" | "medium" | "hard";
+  title: string;
   problem_statement: string;
   starter_code: string;
-  used_fallback?: boolean;
+  used_fallback: boolean;
+  validated: boolean;
+  tests: TestCase[];
+  reference_solution: string | null;
 }): Promise<string> {
-  const supabase = await createClient();
-  const { data: challenge, error } = await supabase
+  const admin = createAdminClient();
+  const { tests, reference_solution, ...row } = data;
+  const examples = tests.filter((t) => !t.hidden).map((t) => ({ input: t.input, output: t.output }));
+
+  const { data: challenge, error } = await admin
     .from("coding_challenges")
-    .insert(data)
+    .insert({ ...row, examples })
     .select("id")
     .single();
-
   if (error || !challenge) throw new Error("Failed to create challenge");
+
+  const { error: secretError } = await admin
+    .from("coding_challenge_secrets")
+    .insert({ challenge_id: challenge.id, tests, reference_solution });
+  if (secretError) {
+    await admin.from("coding_challenges").delete().eq("id", challenge.id);
+    throw new Error("Failed to save challenge tests");
+  }
   return challenge.id;
 }
 
@@ -37,21 +54,14 @@ export async function getChallengeById(
   return data as CodingChallenge;
 }
 
-export async function saveEvaluation(
-  challengeId: string,
-  result: EvaluationResult,
-  xpAwarded: number
-): Promise<void> {
-  const supabase = await createClient();
-  await supabase
-    .from("coding_challenges")
-    .update({
-      evaluation_result: result,
-      status: "evaluated",
-      xp_awarded: xpAwarded,
-      student_submission: null, // stored separately
-    })
-    .eq("id", challengeId);
+/** Server-only: every test (visible + hidden). Never pass the result to a client component. */
+export async function getChallengeTests(challengeId: string): Promise<TestCase[] | null> {
+  const { data } = await createAdminClient()
+    .from("coding_challenge_secrets")
+    .select("tests")
+    .eq("challenge_id", challengeId)
+    .maybeSingle();
+  return (data?.tests as TestCase[] | undefined) ?? null;
 }
 
 export async function getStudentXP(studentId: string): Promise<number> {
@@ -91,17 +101,38 @@ export async function getStudentBadges(studentId: string): Promise<Badge[]> {
   return (data ?? []) as Badge[];
 }
 
+export type ChallengeHistoryItem = Pick<
+  CodingChallenge,
+  "id" | "title" | "language" | "topic" | "difficulty" | "status" | "xp_awarded" | "first_passed_at" | "created_at"
+> & { attempts: number; best_correctness: number | null };
+
+/** Recent challenges with submit count and best correctness. */
 export async function getChallengeHistory(
   studentId: string,
   limit = 20
-): Promise<CodingChallenge[]> {
+): Promise<ChallengeHistoryItem[]> {
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data: challenges } = await supabase
     .from("coding_challenges")
-    .select("*")
+    .select("id, title, language, topic, difficulty, status, xp_awarded, first_passed_at, created_at")
     .eq("student_id", studentId)
     .order("created_at", { ascending: false })
     .limit(limit);
+  if (!challenges?.length) return [];
 
-  return (data ?? []) as CodingChallenge[];
+  const { data: subs } = await supabase
+    .from("coding_submissions")
+    .select("challenge_id, correctness")
+    .eq("student_id", studentId)
+    .eq("kind", "submit")
+    .in("challenge_id", challenges.map((c) => c.id));
+
+  return challenges.map((c) => {
+    const mine = (subs ?? []).filter((s) => s.challenge_id === c.id);
+    return {
+      ...c,
+      attempts: mine.length,
+      best_correctness: mine.length ? Math.max(...mine.map((s) => s.correctness)) : null,
+    } as ChallengeHistoryItem;
+  });
 }

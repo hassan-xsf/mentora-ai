@@ -15,6 +15,7 @@ export const dynamic = "force-dynamic";
 function reasonLabel(reason: string): string {
   if (reason === "signup_bonus") return "Welcome bonus";
   if (reason.startsWith("purchase:")) return `Purchased ${reason.slice(9)} pack`;
+  if (reason.startsWith("demo_purchase:")) return `Demo top-up — ${reason.slice(14)} pack`;
   if (reason.startsWith("refund:")) return `Refund — ${CREDIT_ACTION_LABELS[reason.slice(7) as CreditAction] ?? reason.slice(7)}`;
   return CREDIT_ACTION_LABELS[reason as CreditAction] ?? reason;
 }
@@ -97,7 +98,7 @@ export default async function PricingPage() {
         </div>
 
         <p className="mt-3 text-[12px] text-[#9c9fa5]">
-          Payments are not live yet — buying a pack credits your account immediately.
+          Demo mode: no payment is taken. Buying a pack credits your account immediately, up to 3 packs per day.
         </p>
 
         {/* Costs table */}

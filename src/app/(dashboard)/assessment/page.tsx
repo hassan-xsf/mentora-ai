@@ -1,11 +1,38 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth/session";
 import { getRoadmapsByStudent } from "@/lib/db/roadmaps";
+import { getAssessmentQuestions, listAssessments } from "@/lib/db/careers";
+import type { BankQuestion } from "@/lib/assessment/validate";
 import AssessmentForm from "./AssessmentForm";
+
+// Submitting runs the career AI inside this route's server action.
+export const maxDuration = 60;
+
+/** Fisher-Yates on a copy; sampling keeps repeat assessments from feeling identical. */
+function sample<T>(items: T[], count: number): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy.slice(0, count);
+}
+
+/** Every core question plus 6 sampled from the pool. */
+function buildQuestions(bank: BankQuestion[]): BankQuestion[] {
+  return [...bank.filter((q) => q.is_core), ...sample(bank.filter((q) => !q.is_core), 6)];
+}
+
+const dateFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Karachi" });
 
 export default async function AssessmentPage() {
   const user = await requireUser();
-  const roadmaps = await getRoadmapsByStudent(user.id).catch(() => []);
+  const [roadmaps, history, bank] = await Promise.all([
+    getRoadmapsByStudent(user.id).catch(() => []),
+    listAssessments(user.id).catch(() => []),
+    getAssessmentQuestions(),
+  ]);
+  const questions = buildQuestions(bank);
 
   return (
     <div className="min-h-full bg-[#f5f1ec] antialiased selection:bg-[#ff5600] selection:text-white">
@@ -65,6 +92,38 @@ export default async function AssessmentPage() {
           </div>
         )}
 
+        {/* Past assessments */}
+        {history.length > 0 && (
+          <div className="mb-10">
+            <p className="mb-1 text-[11px] font-bold uppercase tracking-widest text-[#ff5600]">
+              Past Assessments
+            </p>
+            <h2 className="mb-4 text-[22px] font-medium tracking-[-0.4px] text-[#111111]">
+              Your saved results
+            </h2>
+            <div className="divide-y divide-[#ebe7e1] overflow-hidden rounded-[12px] border border-[#d3cec6] bg-white">
+              {history.map((a) => (
+                <Link
+                  key={a.id}
+                  href={`/assessment/results/${a.id}`}
+                  className="group flex items-center justify-between gap-4 px-5 py-3.5 transition-colors hover:bg-[#f5f1ec]"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-[14px] font-medium text-[#111111] group-hover:text-[#ff5600]">
+                      {a.top_career ?? "Career matches"}
+                    </p>
+                    <p className="text-[12px] text-[#9c9fa5]">
+                      {dateFmt.format(new Date(a.created_at))}
+                      {a.used_fallback && " · generic fallback"}
+                    </p>
+                  </div>
+                  <span aria-hidden className="text-[#9c9fa5] group-hover:text-[#ff5600]">→</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* New assessment */}
         <div>
           <p className="mb-1 text-[11px] font-bold uppercase tracking-widest text-[#ff5600]">
@@ -74,10 +133,10 @@ export default async function AssessmentPage() {
             {roadmaps.length > 0 ? "Discover another path" : "Find your ideal career"}
           </h1>
           <p className="mb-6 text-[14px] text-[#626260]">
-            Answer 14 questions and get personalized career recommendations with a full learning roadmap.
+            Answer {questions.length} questions and get personalized career recommendations with a full learning roadmap.
           </p>
 
-          <AssessmentForm />
+          <AssessmentForm questions={questions} />
         </div>
 
       </div>

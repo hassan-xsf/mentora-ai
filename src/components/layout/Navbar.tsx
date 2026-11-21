@@ -9,8 +9,12 @@ import { Logo } from "@/components/ui/Logo";
 const navLinks = [
   { href: "/dashboard",  label: "Dashboard" },
   { href: "/assessment", label: "Career Discovery" },
+  { href: "/build",      label: "What to Build" },
   { href: "/practice",   label: "Practice" },
+  { href: "/review",     label: "Review" },
+  { href: "/internships", label: "Internships" },
   { href: "/progress",   label: "Progress" },
+  { href: "/leaderboard", label: "Leaderboard" },
   { href: "/certificates", label: "Certificates" },
   { href: "/pricing",    label: "Pricing" },
 ];
@@ -18,12 +22,15 @@ const navLinks = [
 export function Navbar({
   credits,
   notifications,
+  isAdmin = false,
 }: {
   credits?: React.ReactNode;
   notifications?: React.ReactNode;
+  isAdmin?: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const links = isAdmin ? [...navLinks, { href: "/admin/ai", label: "Admin" }] : navLinks;
 
   return (
     <>
@@ -37,7 +44,7 @@ export function Navbar({
 
           {/* Desktop nav */}
           <nav className="hidden items-center gap-0.5 md:flex">
-            {navLinks.map(({ href, label }) => (
+            {links.map(({ href, label }) => (
               <Link
                 key={href}
                 href={href}
@@ -100,7 +107,7 @@ export function Navbar({
             onClick={(e) => e.stopPropagation()}
           >
             <nav className="flex flex-col gap-1">
-              {navLinks.map(({ href, label }) => (
+              {links.map(({ href, label }) => (
                 <Link
                   key={href}
                   href={href}

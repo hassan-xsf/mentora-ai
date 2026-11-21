@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth/session";
 import { getRoadmapById } from "@/lib/db/roadmaps";
 import { getMilestoneTestsForRoadmap, getUnlockedSections } from "@/lib/db/milestone-tests";
 import { AIFallbackBadge } from "@/components/ui/AIFallbackBadge";
+import { AIFeedback } from "@/components/ai/AIFeedback";
 import { getCertificatesByStudent, levelForSections } from "@/lib/db/certificates";
 import { CertificatePreviewCard } from "@/components/certificates/CertificatePreviewCard";
 import RoadmapView from "./RoadmapView";
@@ -108,6 +109,13 @@ export default async function RoadmapPage({ params }: Props) {
               <p className="mt-0.5 text-[20px] font-medium text-[#111111]">{milestoneTests.length}</p>
             </div>
           </div>
+
+          {!roadmap.used_fallback && (
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#f5f1ec] pt-4">
+              <p className="text-[13px] text-[#626260]">Is this roadmap useful?</p>
+              <AIFeedback feature="generate_roadmap" targetId={roadmapId} />
+            </div>
+          )}
         </div>
 
         {totalNodes > 0 && (

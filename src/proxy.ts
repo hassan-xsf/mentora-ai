@@ -27,14 +27,19 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAuthRoute =
-    request.nextUrl.pathname.startsWith("/sign-in") ||
-    request.nextUrl.pathname.startsWith("/sign-up") ||
-    request.nextUrl.pathname.startsWith("/auth");
+  const path = request.nextUrl.pathname;
 
-  // Certificate verification is for outsiders (recruiters, employers) who have
-  // no account here, so it must stay reachable while signed out.
-  const isPublicRoute = request.nextUrl.pathname.startsWith("/verify");
+  // Signed-in users have no reason to see these, so they bounce to /dashboard.
+  const isAuthRoute =
+    path === "/" ||
+    path.startsWith("/sign-in") ||
+    path.startsWith("/sign-up") ||
+    path.startsWith("/forgot-password");
+
+  // Reachable either way: certificate verification is for outsiders
+  // (recruiters, employers) with no account, and /auth/callback must run even
+  // when a session cookie already exists (e.g. a password-reset link).
+  const isPublicRoute = path.startsWith("/verify") || path.startsWith("/auth/");
 
   if (!user && !isAuthRoute && !isPublicRoute) {
     const url = request.nextUrl.clone();

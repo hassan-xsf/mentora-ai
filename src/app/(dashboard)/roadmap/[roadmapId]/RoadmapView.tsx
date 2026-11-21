@@ -213,6 +213,22 @@ export default function RoadmapView({
                   <p className="text-[12.5px] font-medium text-[#8a8d93]">
                     Pass the {idx > 0 ? SECTION_LABELS[idx - 1] : "previous"} milestone test to unlock this section.
                   </p>
+                  <p className="mt-1 text-[11px] text-[#b3ada3]">
+                    {tree.length} topics{nodes.length > tree.length && ` · ${nodes.length - tree.length} sub-topics`} waiting
+                  </p>
+                  {tree.length > 0 && (
+                    <ul className="mt-4 flex flex-wrap justify-center gap-1.5" aria-label="Locked topics">
+                      {tree.map(({ node }) => (
+                        <li
+                          key={node.id}
+                          className="inline-flex items-center gap-1 rounded-full border border-[#e2ddd5] bg-white/60 px-2.5 py-1 text-[11px] text-[#b3ada3]"
+                        >
+                          <LockIcon small />
+                          {node.title}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               )}
 
@@ -586,9 +602,9 @@ function CheckIcon({ small }: { small?: boolean }) {
   );
 }
 
-function LockIcon() {
+function LockIcon({ small }: { small?: boolean }) {
   return (
-    <svg width="14" height="16" viewBox="0 0 11 13" fill="none" aria-hidden>
+    <svg width={small ? 9 : 14} height={small ? 10 : 16} viewBox="0 0 11 13" fill="none" aria-hidden>
       <rect x="1" y="5" width="9" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.5" fill="none" />
       <path d="M3.5 5V3.5a2 2 0 014 0V5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
     </svg>

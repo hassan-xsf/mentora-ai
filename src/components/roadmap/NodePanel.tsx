@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { completeNodeTask } from "@/app/actions/complete-node-task";
 import type { FullNode } from "@/lib/db/roadmaps";
+import { displayLink } from "@/lib/resources/links";
+import { useToast } from "@/components/ui/Toaster";
 
 function ResourceIcon({ type }: { type: string }) {
   if (type === "video") return (
@@ -35,6 +37,7 @@ type Props = {
 export function NodePanel({ node, onClose, roadmapId, onTaskToggle }: Props) {
   const [tasks, setTasks] = useState(node.tasks);
   const [, startTransition] = useTransition();
+  const { showToast } = useToast();
 
   function toggleTask(taskId: string, currentValue: boolean) {
     const newValue = !currentValue;
@@ -47,7 +50,14 @@ export function NodePanel({ node, onClose, roadmapId, onTaskToggle }: Props) {
     onTaskToggle(taskId, newValue, allDone);
 
     startTransition(async () => {
-      await completeNodeTask(taskId, node.id, roadmapId, newValue);
+      try {
+        await completeNodeTask(taskId, node.id, roadmapId, newValue);
+      } catch (e) {
+        // Server refused (e.g. section still locked): undo the optimistic tick.
+        setTasks(tasks);
+        onTaskToggle(taskId, currentValue, tasks.every((t) => t.is_completed));
+        showToast(e instanceof Error ? e.message : "Could not save the task", "error");
+      }
     });
   }
 
@@ -94,33 +104,54 @@ export function NodePanel({ node, onClose, roadmapId, onTaskToggle }: Props) {
             <div>
               <p className="mb-2.5 text-[11px] font-medium uppercase tracking-widest text-[#9c9fa5]">Resources</p>
               <div className="space-y-2">
-                {node.resources.map((resource) => (
-                  <div
-                    key={resource.id}
-                    className="flex items-center gap-3 rounded-[8px] border border-[#d3cec6] bg-[#f5f1ec] px-3.5 py-2.5"
-                  >
-                    <span className="shrink-0 text-[#9c9fa5]">
-                      <ResourceIcon type={resource.type} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      {resource.url ? (
-                        <a
-                          href={resource.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="block truncate text-[13px] font-medium text-[#ff5600] hover:underline"
-                        >
-                          {resource.title}
-                        </a>
-                      ) : (
-                        <p className="truncate text-[13px] font-medium text-[#626260]">{resource.title}</p>
-                      )}
-                      <span className="text-[11px] capitalize text-[#9c9fa5]">
-                        {resource.type}{!resource.url && " · no link"}
+                {node.resources.map((resource) => {
+                  const link = displayLink(resource);
+                  return (
+                    <div
+                      key={resource.id}
+                      className="flex items-center gap-3 rounded-[8px] border border-[#d3cec6] bg-[#f5f1ec] px-3.5 py-2.5"
+                    >
+                      <span className="shrink-0 text-[#9c9fa5]">
+                        <ResourceIcon type={resource.type} />
                       </span>
+                      <div className="min-w-0 flex-1">
+                        {link ? (
+                          <a
+                            href={link.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={link.verified ? undefined : `Search for "${resource.title}"`}
+                            className="block truncate text-[13px] font-medium text-[#ff5600] hover:underline"
+                          >
+                            {resource.title}
+                          </a>
+                        ) : (
+                          <p className="truncate text-[13px] font-medium text-[#626260]">{resource.title}</p>
+                        )}
+                        <span className="text-[11px] capitalize text-[#9c9fa5]">
+                          {resource.type}
+                          {!link && " · summary"}
+                        </span>
+                      </div>
+                      {link && (
+                        <span
+                          className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+                            link.verified
+                              ? "border-[#0bdf50]/30 bg-[#0bdf50]/10 text-[#0a7d30]"
+                              : "border-[#d3cec6] bg-white text-[#8a8d93]"
+                          }`}
+                          title={
+                            link.verified
+                              ? "Link was checked and is live"
+                              : "No confirmed link; opens a search for this resource"
+                          }
+                        >
+                          {link.verified ? "Verified" : "Search"}
+                        </span>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

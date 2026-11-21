@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { notify } from "@/lib/db/notifications";
 
 type BadgeDefinition = {
@@ -42,7 +42,7 @@ const BADGE_DEFINITIONS: BadgeDefinition[] = [
 ];
 
 export async function checkAndAwardBadges(studentId: string): Promise<string[]> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const [studentResult, challengeCountResult, existingBadgesResult] = await Promise.all([
     supabase.from("students").select("xp_total").eq("id", studentId).single(),
@@ -64,12 +64,21 @@ export async function checkAndAwardBadges(studentId: string): Promise<string[]> 
 
   for (const badge of BADGE_DEFINITIONS) {
     if (!existingBadgeNames.has(badge.name) && badge.condition(xp, challengeCount)) {
-      await supabase.from("badges").insert({
-        student_id: studentId,
-        name: badge.name,
-        description: badge.description,
-        icon: badge.icon,
-      });
+      // unique(student_id, name) + ignoreDuplicates: a concurrent request that
+      // already awarded it gets no row back, so it won't notify twice.
+      const { data: inserted } = await supabase
+        .from("badges")
+        .upsert(
+          {
+            student_id: studentId,
+            name: badge.name,
+            description: badge.description,
+            icon: badge.icon,
+          },
+          { onConflict: "student_id,name", ignoreDuplicates: true }
+        )
+        .select("id");
+      if (!inserted?.length) continue;
       await notify(
         studentId,
         "badge",

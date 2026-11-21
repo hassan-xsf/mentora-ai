@@ -4,6 +4,9 @@ import { getBlueprintsByStudent } from "@/lib/db/blueprints";
 import { CREDIT_COSTS } from "@/lib/credits/config";
 import BlueprintForm from "./BlueprintForm";
 
+// generateBlueprint runs from this page: one AI call plus a possible retry.
+export const maxDuration = 120;
+
 export default async function BuildPage() {
   const user = await requireUser();
   const blueprints = await getBlueprintsByStudent(user.id);

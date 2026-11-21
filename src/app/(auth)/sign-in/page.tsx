@@ -1,16 +1,21 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Suspense, useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-export default function SignInPage() {
+function SignInForm() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  // Set by /auth/callback when an email confirmation link is stale.
+  const [error, setError] = useState<string | null>(
+    useSearchParams().get("error") === "link"
+      ? "That email link has expired or was already used. Sign in, or request a new link."
+      : null
+  );
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -66,9 +71,14 @@ export default function SignInPage() {
 
         {/* Password */}
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="password" className="text-[13px] font-medium text-[#111111]">
-            Password
-          </label>
+          <div className="flex items-center justify-between">
+            <label htmlFor="password" className="text-[13px] font-medium text-[#111111]">
+              Password
+            </label>
+            <Link href="/forgot-password" className="text-[12px] font-medium text-[#626260] underline-offset-4 hover:text-[#111111] hover:underline">
+              Forgot password?
+            </Link>
+          </div>
           <input
             id="password"
             type="password"
@@ -84,7 +94,7 @@ export default function SignInPage() {
 
         {/* Error */}
         {error && (
-          <div className="rounded-[8px] border border-[#c41c1c]/20 bg-[#c41c1c]/5 px-4 py-3 text-[13px] text-[#c41c1c]">
+          <div role="alert" className="rounded-[8px] border border-[#c41c1c]/20 bg-[#c41c1c]/5 px-4 py-3 text-[13px] text-[#c41c1c]">
             {error}
           </div>
         )}
@@ -114,5 +124,14 @@ export default function SignInPage() {
         Create an account
       </Link>
     </div>
+  );
+}
+
+export default function SignInPage() {
+  // useSearchParams needs a Suspense boundary for the static prerender.
+  return (
+    <Suspense>
+      <SignInForm />
+    </Suspense>
   );
 }

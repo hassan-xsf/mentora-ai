@@ -50,6 +50,27 @@ const sidebarLinks = [
     ),
   },
   {
+    href: "/review",
+    label: "Review",
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+        <path d="M2 7.5a5.5 5.5 0 109.4-3.9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+        <path d="M11.5 1.5v2.3H9.2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M7.5 5v2.7l1.8 1.1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    href: "/internships",
+    label: "Internships",
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+        <rect x="1.5" y="4.5" width="12" height="8.5" rx="1.2" stroke="currentColor" strokeWidth="1.2" />
+        <path d="M5.5 4.5V3a1 1 0 011-1h2a1 1 0 011 1v1.5M1.5 8h12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
     href: "/pricing",
     label: "Pricing",
     icon: (
@@ -78,15 +99,37 @@ const sidebarLinks = [
       </svg>
     ),
   },
+  {
+    href: "/leaderboard",
+    label: "Leaderboard",
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+        <rect x="1" y="7" width="4" height="6.5" rx="0.8" stroke="currentColor" strokeWidth="1.2" />
+        <rect x="5.5" y="3" width="4" height="10.5" rx="0.8" stroke="currentColor" strokeWidth="1.2" />
+        <rect x="10" y="9" width="4" height="4.5" rx="0.8" stroke="currentColor" strokeWidth="1.2" />
+      </svg>
+    ),
+  },
 ];
 
-export function Sidebar() {
+// Shown only when the server says the user is in ADMIN_EMAILS; the page itself re-checks.
+const adminLink = {
+  href: "/admin/ai",
+  label: "Admin",
+  icon: (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <path d="M7.5 1.5L13 3.5V7.5C13 10.5 10.5 12.8 7.5 13.5C4.5 12.8 2 10.5 2 7.5V3.5L7.5 1.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+    </svg>
+  ),
+};
+
+export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
 
   return (
     <aside className="hidden w-52 shrink-0 border-r border-[#d3cec6] bg-[#f5f1ec] md:flex md:flex-col">
       <nav className="flex flex-col gap-0.5 p-3 pt-4">
-        {sidebarLinks.map(({ href, label, icon }) => (
+        {(isAdmin ? [...sidebarLinks, adminLink] : sidebarLinks).map(({ href, label, icon }) => (
           <Link
             key={href}
             href={href}

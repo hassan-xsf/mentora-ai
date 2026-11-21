@@ -1,9 +1,13 @@
-import { aiQuery } from "./client";
+import { aiQuery, type AIQueryOptions } from "./client";
 
 type HistoryEntry = { role: "user" | "model" | "assistant"; parts?: string; content?: string };
 
-export async function chatCompletion(prompt: string): Promise<string> {
-  return aiQuery(prompt);
+/** `opts` may be just the feature name, e.g. chatCompletion(prompt, "generate_roadmap"). */
+type Opts = string | AIQueryOptions;
+const toOpts = (o?: Opts): AIQueryOptions => (typeof o === "string" ? { feature: o } : o ?? {});
+
+export async function chatCompletion(prompt: string, feature?: Opts): Promise<string> {
+  return aiQuery(prompt, toOpts(feature));
 }
 
 function buildHistoryPrompt(
@@ -29,7 +33,8 @@ function buildHistoryPrompt(
 export async function chatCompletionWithHistory(
   history: HistoryEntry[],
   newMessage: string,
-  systemPrompt?: string
+  systemPrompt?: string,
+  feature?: Opts
 ): Promise<string> {
-  return aiQuery(buildHistoryPrompt(history, newMessage, systemPrompt));
+  return aiQuery(buildHistoryPrompt(history, newMessage, systemPrompt), toOpts(feature));
 }

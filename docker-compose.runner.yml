@@ -1,0 +1,29 @@
+# Self-hosted Piston code runner for the practice section. See docs/CODE_RUNNER.md.
+#   docker compose -f docker-compose.runner.yml up -d
+services:
+  piston:
+    image: ghcr.io/engineer-man/piston
+    container_name: mentora-piston
+    restart: unless-stopped
+    # Piston sandboxes every job with isolate + cgroups, which needs privileged mode.
+    privileged: true
+    # Bind to localhost only; expose through a reverse proxy that checks CODE_RUNNER_TOKEN.
+    ports:
+      - "127.0.0.1:2000:2000"
+    environment:
+      PISTON_DISABLE_NETWORKING: "true"
+      # Default is 1024 chars, too small for realistic test output.
+      PISTON_OUTPUT_MAX_SIZE: "65536"
+      PISTON_RUN_TIMEOUT: "3000"
+      PISTON_COMPILE_TIMEOUT: "10000"
+      PISTON_RUN_MEMORY_LIMIT: "268435456"
+      PISTON_COMPILE_MEMORY_LIMIT: "536870912"
+      # Small VM (1 vCPU): queue jobs instead of running dozens at once.
+      PISTON_MAX_CONCURRENT_JOBS: "4"
+    volumes:
+      - piston-packages:/piston/packages
+    tmpfs:
+      - /tmp:exec
+
+volumes:
+  piston-packages:

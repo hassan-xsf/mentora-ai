@@ -1,12 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/auth/session";
 
 export async function markAllNotificationsRead(): Promise<void> {
   const user = await requireUser();
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   await supabase
     .from("notifications")
@@ -19,7 +19,7 @@ export async function markAllNotificationsRead(): Promise<void> {
 
 export async function markNotificationRead(notificationId: string): Promise<void> {
   const user = await requireUser();
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   await supabase
     .from("notifications")

@@ -1,12 +1,17 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth/session";
-import { getMilestoneTestById } from "@/lib/db/milestone-tests";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+import { getLatestAttempt, getOpenSession, getOwnedTest } from "@/lib/db/milestone-tests";
+import { cooldownEndsAt, PASS_MARK, toPublic } from "@/lib/adaptive/questions";
+import { CREDIT_COSTS } from "@/lib/credits/config";
 import { AIFallbackBadge } from "@/components/ui/AIFallbackBadge";
-import { generateMilestoneTest } from "@/app/actions/generate-milestone-test";
+import { TestResults, type WeakTopic } from "@/components/roadmap/TestResults";
 import TestForm from "./TestForm";
-import type { MilestoneQuestion, MilestoneTest } from "@/types";
+import StartAttempt from "./StartAttempt";
+
+// Starting (generation) and submitting (grading + explanations) call the AI.
+export const maxDuration = 120;
 
 type Props = {
   params: Promise<{ roadmapId: string; testId: string }>;
@@ -14,33 +19,33 @@ type Props = {
 
 export default async function TestPage({ params }: Props) {
   const { roadmapId, testId } = await params;
-  await requireUser();
+  const user = await requireUser();
 
-  let test = await getMilestoneTestById(testId);
-  if (!test) notFound();
+  const test = await getOwnedTest(testId, user.id);
+  if (!test || test.roadmap_id !== roadmapId) notFound();
 
-  // If no questions yet, generate them and re-read via admin client
-  if (!test.questions || (Array.isArray(test.questions) && test.questions.length === 0)) {
-    await generateMilestoneTest(testId, roadmapId, test.title);
+  const [session, latest] = await Promise.all([
+    getOpenSession(testId, user.id),
+    getLatestAttempt(testId, user.id),
+  ]);
 
-    // Re-fetch using admin client to avoid any RLS/cache weirdness
-    const admin = createAdminClient();
-    const { data } = await admin
-      .from("milestone_tests")
-      .select("*")
-      .eq("id", testId)
-      .single();
-
-    if (data) test = data as MilestoneTest;
+  let weakTopics: WeakTopic[] = [];
+  const missedNodeIds = [...new Set((latest?.results ?? []).filter((r) => !r.is_correct && r.node_id).map((r) => r.node_id!))];
+  if (missedNodeIds.length) {
+    const supabase = await createClient();
+    const [{ data: nodes }, { data: items }] = await Promise.all([
+      supabase.from("nodes").select("id, title").in("id", missedNodeIds),
+      supabase.from("review_items").select("id, node_id").eq("student_id", user.id).in("node_id", missedNodeIds),
+    ]);
+    const itemFor = new Map((items ?? []).map((i) => [i.node_id, i.id]));
+    weakTopics = (nodes ?? []).map((n) => ({ nodeId: n.id, title: n.title, reviewItemId: itemFor.get(n.id) ?? null }));
   }
 
-  const questions = (test.questions ?? []) as MilestoneQuestion[];
+  const cooldown = cooldownEndsAt(latest, new Date());
 
   return (
     <div className="min-h-full bg-[#f5f1ec]">
       <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-10">
-
-        {/* Back link */}
         <Link
           href={`/roadmap/${roadmapId}`}
           className="mb-6 inline-flex items-center gap-1.5 text-[13px] text-[#9c9fa5] transition-colors hover:text-[#111111]"
@@ -51,51 +56,49 @@ export default async function TestPage({ params }: Props) {
           Back to Roadmap
         </Link>
 
-        {/* Header card */}
         <div className="mb-6 rounded-[12px] border border-[#d3cec6] bg-white p-6">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[11px] font-medium uppercase tracking-widest text-[#9c9fa5]">Milestone Test</p>
-              <h1 className="mt-1 text-[24px] font-medium leading-tight tracking-[-0.4px] text-[#111111]">
-                {test.title}
-              </h1>
+              <h1 className="mt-1 text-[24px] font-medium leading-tight tracking-[-0.4px] text-[#111111]">{test.title}</h1>
             </div>
-            {test.used_fallback && <AIFallbackBadge compact label="Fallback" />}
+            {session?.used_fallback && <AIFallbackBadge compact label="Practice" />}
           </div>
           <div className="mt-3 flex items-center gap-2 text-[13px] text-[#626260]">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
               <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.5" />
               <path d="M7 4v3l2 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
-            Score ≥70% to unlock the next section
+            Score ≥{PASS_MARK}% to unlock the next section · 10-minute cooldown after a failed attempt
           </div>
         </div>
 
-        {questions.length === 0 ? (
+        {!test.unlocked ? (
           <div className="rounded-[12px] border border-[#d3cec6] bg-white px-6 py-10 text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#f5f1ec]">
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
-                <path d="M10 6v4M10 14h.01" stroke="#9c9fa5" strokeWidth="2" strokeLinecap="round" />
-                <circle cx="10" cy="10" r="8" stroke="#9c9fa5" strokeWidth="2" />
-              </svg>
-            </div>
-            <p className="text-[14px] font-medium text-[#111111]">Questions not ready yet</p>
-            <p className="mt-1 text-[13px] text-[#9c9fa5]">
-              Something went wrong generating this test. Try the button below.
-            </p>
-            <Link
-              href={`/roadmap/${roadmapId}/test/${testId}`}
-              className="mt-5 inline-flex items-center gap-2 rounded-[8px] bg-[#111111] px-5 py-2.5 text-[13px] font-medium text-white transition-colors hover:bg-black"
-            >
-              Try again →
-            </Link>
+            <p className="text-[14px] font-medium text-[#111111]">This section is locked</p>
+            <p className="mt-1 text-[13px] text-[#9c9fa5]">Pass the previous milestone test first.</p>
+          </div>
+        ) : session ? (
+          <div className="space-y-4">
+            {session.used_fallback && (
+              <div className="rounded-[12px] border border-[#ff5600]/30 bg-[#fff7f2] px-5 py-4 text-[13px] text-[#626260]">
+                <span className="font-medium text-[#111111]">Practice mode.</span> The AI couldn&apos;t write questions
+                just now, so these are generic ones from your roadmap. You weren&apos;t charged, and this attempt
+                can&apos;t unlock the next section.
+              </div>
+            )}
+            <TestForm sessionId={session.id} questions={session.questions.map(toPublic)} />
           </div>
         ) : (
-          <TestForm
-            test={test}
-            questions={questions}
-            roadmapId={roadmapId}
-          />
+          <div className="space-y-5">
+            {latest && <TestResults attempt={latest} weakTopics={weakTopics} />}
+            <StartAttempt
+              testId={testId}
+              cost={CREDIT_COSTS.generate_milestone_test}
+              cooldownEndsAt={cooldown?.toISOString() ?? null}
+              hasAttempts={!!latest}
+            />
+          </div>
         )}
       </div>
     </div>

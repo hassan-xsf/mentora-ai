@@ -12,6 +12,7 @@ export default function SignUpPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -29,6 +30,7 @@ export default function SignUpPage() {
         password,
         options: {
           data: { full_name: fullName },
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
         },
       });
 
@@ -37,17 +39,37 @@ export default function SignUpPage() {
         return;
       }
 
-      if (data.user) {
-        await supabase.from("students").upsert({
-          id: data.user.id,
-          email,
-          full_name: fullName || null,
-        });
+      // The students row is created by the on_auth_user_created trigger.
+      // No session means the project requires email confirmation first (this
+      // is also what Supabase returns for an already-registered email).
+      if (!data.session) {
+        setAwaitingConfirmation(true);
+        return;
       }
 
       router.push("/dashboard");
       router.refresh();
     });
+  }
+
+  if (awaitingConfirmation) {
+    return (
+      <div role="status">
+        <h1 className="text-[32px] font-medium leading-[1.15] tracking-[-0.8px] text-[#111111]">
+          Confirm your email
+        </h1>
+        <p className="mt-3 text-[15px] leading-relaxed text-[#626260]">
+          We&rsquo;ve sent a confirmation link to <span className="font-medium text-[#111111]">{email}</span>.
+          Open it to activate your account and you&rsquo;ll land on your dashboard. Can&rsquo;t find it? Check spam.
+        </p>
+        <Link
+          href="/sign-in"
+          className="mt-8 flex h-11 w-full items-center justify-center rounded-[8px] border border-[#d3cec6] bg-white text-[15px] font-medium text-[#111111] transition-colors hover:bg-[#f5f1ec]"
+        >
+          Back to sign in
+        </Link>
+      </div>
+    );
   }
 
   return (
@@ -118,7 +140,7 @@ export default function SignUpPage() {
 
         {/* Error */}
         {error && (
-          <div className="rounded-[8px] border border-[#c41c1c]/20 bg-[#c41c1c]/5 px-4 py-3 text-[13px] text-[#c41c1c]">
+          <div role="alert" className="rounded-[8px] border border-[#c41c1c]/20 bg-[#c41c1c]/5 px-4 py-3 text-[13px] text-[#c41c1c]">
             {error}
           </div>
         )}

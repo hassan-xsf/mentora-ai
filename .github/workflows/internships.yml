@@ -1,0 +1,36 @@
+name: Internships scraper
+
+on:
+  schedule:
+    - cron: "17 */6 * * *" # every 6 hours (UTC)
+  workflow_dispatch:
+
+concurrency:
+  group: internships-scraper
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Scrape and sync
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SEARXNG_URL: ${{ secrets.SEARXNG_URL }}
+        run: npx tsx scraper/internships/run.ts
+      - name: Keep the run summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: internships-run
+          path: scraper/internships/out/
+          retention-days: 7

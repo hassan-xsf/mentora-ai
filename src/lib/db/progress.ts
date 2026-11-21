@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { ProgressRecord, ActivityDataPoint } from "@/types";
 
 export async function getProgressRecord(studentId: string): Promise<ProgressRecord> {
@@ -12,9 +13,10 @@ export async function getProgressRecord(studentId: string): Promise<ProgressReco
   if (data) return data as ProgressRecord;
 
   // Create default record
-  const { data: created } = await supabase
+  // Server-side write; callers pass the authenticated user's id.
+  const { data: created } = await createAdminClient()
     .from("progress_records")
-    .insert({ student_id: studentId })
+    .upsert({ student_id: studentId }, { onConflict: "student_id", ignoreDuplicates: true })
     .select()
     .single();
 
@@ -89,7 +91,7 @@ export async function getActivityData(
 }
 
 export async function updateProgressRecord(studentId: string): Promise<void> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const [roadmapsResult, nodesResult, testsResult, challengesResult] =
     await Promise.all([

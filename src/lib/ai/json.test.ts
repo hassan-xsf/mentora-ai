@@ -71,6 +71,15 @@ assert.deepEqual(parseJSONLoose('{"a":1}'), { a: 1 });
   assert.deepEqual(r.n, [1, 2, 3]);
 }
 
+// Real model malformations: unescaped inner quotes, and `]` where `}` was due.
+assert.deepEqual(parseJSONLoose('{"t":"show a (e.g., "Predicted vs. Actual" visual)."}'), {
+  t: 'show a (e.g., "Predicted vs. Actual" visual).',
+});
+assert.deepEqual(
+  parseJSONLoose('{"nodes":[{"children":[{"tasks":[{"t":"x"}]\n]\n},{"t":"y"}]}'),
+  { nodes: [{ children: [{ tasks: [{ t: "x" }] }] }, { t: "y" }] }
+);
+
 // Genuinely unparseable input still throws.
 assert.throws(() => parseJSONLoose("not json at all"));
 

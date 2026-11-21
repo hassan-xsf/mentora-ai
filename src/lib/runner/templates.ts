@@ -83,11 +83,9 @@ export function fallbackChallenge(language: string, topic: string) {
     title: "Sum of a List",
     problem_statement: `A warm-up ${topic.toLowerCase()} exercise: add up a list of integers.
 
-Input format
-The first line contains an integer n (1 ≤ n ≤ 1000). The second line contains n integers separated by spaces, each between -10^9 and 10^9.
+**Input format:** The first line contains an integer n (1 ≤ n ≤ 1000). The second line contains n integers separated by spaces, each between -10^9 and 10^9.
 
-Output format
-Print a single integer: the sum of the n numbers. The sum can exceed 32-bit range, so use a 64-bit type where your language needs one.`,
+**Output format:** Print a single integer: the sum of the n numbers. The sum can exceed 32-bit range, so use a 64-bit type where your language needs one.`,
     starter_code: starterFor(language),
     tests,
   };

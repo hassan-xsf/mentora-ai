@@ -29,12 +29,13 @@ export default async function PricingPage() {
 
   return (
     <div className="min-h-full bg-[#f5f1ec]">
-      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
 
         {/* Header + balance */}
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-[26px] font-medium tracking-tight text-[#111111]">Credits</h1>
+            <p className="text-[11px] font-medium uppercase tracking-widest text-[#9c9fa5]">Billing</p>
+            <h1 className="mt-1 text-[28px] font-medium leading-tight tracking-[-0.5px] text-[#111111]">Credits</h1>
             <p className="mt-1 text-[14px] text-[#626260]">
               Credits pay for AI work — roadmaps, challenges, evaluations and tutor chat.
             </p>
@@ -135,7 +136,7 @@ export default async function PricingPage() {
                 <div className="min-w-0">
                   <p className="truncate text-[#111111]">{reasonLabel(tx.reason)}</p>
                   <p className="text-[11px] text-[#9c9fa5]">
-                    {new Date(tx.created_at).toLocaleString()}
+                    {new Date(tx.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Karachi" })}
                   </p>
                 </div>
                 <div className="shrink-0 text-right">

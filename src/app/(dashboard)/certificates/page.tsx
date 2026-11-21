@@ -56,7 +56,7 @@ export default async function CertificatesPage() {
                     <p className="mt-0.5 text-[11.5px] text-[#9c9fa5]">
                       {cert.level} ·{" "}
                       <span className="font-mono">{cert.code}</span> ·{" "}
-                      {new Date(cert.issued_at).toLocaleDateString()}
+                      {new Date(cert.issued_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Karachi" })}
                     </p>
                   </div>
                 </div>

@@ -18,7 +18,7 @@ export default function SkillRadar({ scores }: { scores: Record<Dimension, numbe
 
   return (
     // Side padding in the viewBox leaves room for the longest axis label.
-    <svg viewBox={`-40 0 ${SIZE + 80} ${SIZE}`} className="h-auto w-full max-w-[320px]" role="img" aria-label={`Skill profile: ${summary}`}>
+    <svg viewBox={`-90 0 ${SIZE + 180} ${SIZE}`} className="h-auto w-full max-w-[360px]" role="img" aria-label={`Skill profile: ${summary}`}>
       {[25, 50, 75, 100].map((pct) => (
         <polygon
           key={pct}
@@ -41,9 +41,9 @@ export default function SkillRadar({ scores }: { scores: Record<Dimension, numbe
         const [x, y] = point(i, R + 22);
         const anchor = Math.abs(x - C) < 4 ? "middle" : x > C ? "start" : "end";
         return (
-          <text key={d} x={x} y={y} textAnchor={anchor} dominantBaseline="middle" fontSize="10.5" fill="#626260">
+          <text key={d} x={x} y={y} textAnchor={anchor} dominantBaseline="middle" fontSize="17" fill="#626260">
             <tspan>{DIMENSION_LABELS[d].split(" & ")[0]}</tspan>
-            <tspan x={x} dy="12" fontWeight="600" fill="#111111">{scores[d]}</tspan>
+            <tspan x={x} dy="20" fontWeight="600" fill="#111111">{scores[d]}</tspan>
           </text>
         );
       })}

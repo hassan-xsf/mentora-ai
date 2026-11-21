@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { ActivityDataPoint } from "@/types";
+import { DailyBars } from "./DailyBars";
 
 type Props = {
   activityData: ActivityDataPoint[];
@@ -30,16 +31,6 @@ export function ActivityChart({ activityData }: Props) {
 
   const displayData = view === "weekly" ? aggregateWeekly(activityData) : activityData;
 
-  const maxActivity = Math.max(
-    ...displayData.map((d) => d.challenges_completed + d.nodes_completed),
-    1
-  );
-
-  const chartH = 100;
-  const barW = view === "daily" ? Math.max(8, Math.floor(560 / displayData.length) - 3) : 28;
-  const gap = 3;
-  const svgW = Math.max(560, displayData.length * (barW + gap));
-
   return (
     <div>
       {/* View toggle — pill style */}
@@ -61,60 +52,11 @@ export function ActivityChart({ activityData }: Props) {
       </div>
 
       {/* SVG chart */}
-      <div className="overflow-x-auto">
-        <svg
-          width={svgW}
-          height={chartH + 24}
-          className="block"
-          aria-label="Activity chart"
-        >
-          {/* Grid lines */}
-          {[0.25, 0.5, 0.75, 1].map((ratio) => (
-            <line
-              key={ratio}
-              x1={0}
-              x2={svgW}
-              y1={chartH - ratio * chartH}
-              y2={chartH - ratio * chartH}
-              stroke="#ebe7e1"
-              strokeWidth={1}
-            />
-          ))}
-
-          {/* Bars */}
-          {displayData.map((point, i) => {
-            const x = i * (barW + gap);
-            const actTotal = point.challenges_completed + point.nodes_completed;
-            const actH = Math.max(0, Math.round((actTotal / maxActivity) * chartH));
-            const isEmpty = actH === 0;
-
-            return (
-              <g key={point.date}>
-                {actH > 0 && (
-                  <rect x={x} y={chartH - actH} width={barW} height={actH} fill="#111111" rx={2}>
-                    <title>{point.date}: {actTotal} activities</title>
-                  </rect>
-                )}
-                {isEmpty && (
-                  <rect x={x} y={chartH - 2} width={barW} height={2} fill="#ebe7e1" rx={1} />
-                )}
-                {(view === "weekly" || i % 5 === 0) && (
-                  <text
-                    x={x + barW / 2}
-                    y={chartH + 16}
-                    textAnchor="middle"
-                    fontSize={9}
-                    fill="#9c9fa5"
-                    fontFamily="inherit"
-                  >
-                    {point.date.slice(5)}
-                  </text>
-                )}
-              </g>
-            );
-          })}
-        </svg>
-      </div>
+      <DailyBars
+        data={displayData.map((d) => ({ date: d.date, value: d.challenges_completed + d.nodes_completed }))}
+        format={(v) => `${v} ${v === 1 ? "activity" : "activities"}`}
+        label={`Activity per ${view === "daily" ? "day" : "week"}`}
+      />
 
       {/* Legend */}
       <div className="mt-3 flex gap-5 text-[12px] text-[#9c9fa5]">

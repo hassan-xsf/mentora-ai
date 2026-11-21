@@ -18,7 +18,7 @@ export default async function PracticePage() {
 
   return (
     <div className="min-h-screen bg-[#f5f1ec] font-sans text-[#111111]">
-      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12 lg:py-20">
+      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
         <PracticeSetup />
 
         {history.length > 0 && (

@@ -8,36 +8,41 @@ type Props = {
   label: string;
 };
 
-/** Responsive daily bar chart, one bar per Pakistan day. */
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const shortDay = (iso: string) => `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1]}`;
+
+/** Daily bar chart, one bar per Pakistan day. HTML bars so height and text stay fixed at any width. */
 export function DailyBars({ data, color = "#111111", format, label }: Props) {
   const max = Math.max(...data.map((d) => d.value), 1);
-  const H = 100;
-  const barW = 10;
-  const gap = 4;
-  const W = data.length * (barW + gap) - gap;
   const labelEvery = Math.ceil(data.length / 7);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H + 18}`} className="block h-auto w-full" role="img" aria-label={label}>
-      {[0.5, 1].map((r) => (
-        <line key={r} x1={0} x2={W} y1={H - r * H} y2={H - r * H} stroke="#ebe7e1" strokeWidth={0.5} />
-      ))}
-      {data.map((d, i) => {
-        const x = i * (barW + gap);
-        const h = Math.round((d.value / max) * H);
-        return (
-          <g key={d.date}>
-            <rect x={x} y={h > 0 ? H - h : H - 1.5} width={barW} height={h > 0 ? h : 1.5} rx={1.5} fill={h > 0 ? color : "#ebe7e1"}>
-              <title>{`${d.date}: ${format(d.value)}`}</title>
-            </rect>
-            {(data.length - 1 - i) % labelEvery === 0 && (
-              <text x={x + barW / 2} y={H + 13} textAnchor="middle" fontSize={7} fill="#9c9fa5">
-                {d.date.slice(5)}
-              </text>
-            )}
-          </g>
-        );
-      })}
-    </svg>
+    <figure role="img" aria-label={label} className="w-full">
+      <div className="relative flex h-32 items-end gap-[3px] border-b border-[#ebe7e1] sm:gap-1.5">
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-dashed border-[#efebe5]" />
+        {data.map((d) => {
+          const pct = (d.value / max) * 100;
+          return (
+            <div
+              key={d.date}
+              title={`${shortDay(d.date)}: ${format(d.value)}`}
+              className="relative flex h-full flex-1 items-end justify-center"
+            >
+              <div
+                className="w-full max-w-7 rounded-t-[4px] transition-[height]"
+                style={{ height: d.value > 0 ? `max(${pct}%, 4px)` : "2px", background: d.value > 0 ? color : "#ebe7e1" }}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-2 flex gap-[3px] sm:gap-1.5" aria-hidden>
+        {data.map((d, i) => (
+          <span key={d.date} className="flex-1 whitespace-nowrap text-center text-[10.5px] tabular-nums text-[#9c9fa5]">
+            {(data.length - 1 - i) % labelEvery === 0 ? shortDay(d.date) : ""}
+          </span>
+        ))}
+      </div>
+    </figure>
   );
 }

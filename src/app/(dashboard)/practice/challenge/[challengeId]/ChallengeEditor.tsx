@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { CodeEditor } from "@/components/practice/CodeEditor";
 import { EvaluationResults } from "@/components/practice/EvaluationResults";
 import { CREDIT_COSTS } from "@/lib/credits/config";
@@ -32,6 +33,7 @@ function Spinner() {
 }
 
 export default function ChallengeEditor({ challengeId, starterCode, language, existingResult, lastSubmission }: Props) {
+  const router = useRouter();
   const [code, setCode] = useState(lastSubmission ?? starterCode);
   const [result, setResult] = useState<EvaluationResult | null>(existingResult);
   const [resultMode, setResultMode] = useState<Mode>("submit");
@@ -69,6 +71,7 @@ export default function ChallengeEditor({ challengeId, starterCode, language, ex
         setXpEarned(data.xp_earned ?? 0);
         setNewBadges(data.new_badges ?? []);
         setShowResults(true);
+        if (mode === "submit") router.refresh(); // server-rendered credits badge + "Solved" pill
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to evaluate code");
       } finally {

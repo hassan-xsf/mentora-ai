@@ -60,9 +60,10 @@ export default function GenerateRoadmapButton({ careerTitle, careerDescription }
 
     startTransition(async () => {
       try {
-        const { roadmapId } = await generateRoadmap(careerTitle, careerDescription);
+        const res = await generateRoadmap(careerTitle, careerDescription);
         clearInterval(interval);
-        router.push(`/roadmap/${roadmapId}`);
+        if ("error" in res) setError(res.error);
+        else router.push(`/roadmap/${res.roadmapId}`);
       } catch (err) {
         clearInterval(interval);
         setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");

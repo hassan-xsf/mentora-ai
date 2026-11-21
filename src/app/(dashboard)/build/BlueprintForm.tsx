@@ -145,8 +145,9 @@ export default function BlueprintForm() {
     setError(null);
     startTransition(async () => {
       try {
-        const { blueprintId } = await generateBlueprint(inputs);
-        router.push(`/build/${blueprintId}`);
+        const res = await generateBlueprint(inputs);
+        if ("error" in res) return setError(res.error);
+        router.push(`/build/${res.blueprintId}`);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Could not generate a blueprint.");
       }

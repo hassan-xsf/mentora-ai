@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth/session";
 import { getChallengeById } from "@/lib/db/practice";
 import { AIFallbackBadge } from "@/components/ui/AIFallbackBadge";
+import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 import ChallengeEditor from "./ChallengeEditor";
 
 type Props = {
@@ -27,11 +28,8 @@ export default async function ChallengePage({ params }: Props) {
   const diff = DIFF_STYLE[challenge.difficulty] ?? DIFF_STYLE.easy;
   const xp = XP_MAP[challenge.difficulty] ?? 10;
 
-  // Split problem statement into paragraphs for better rendering
-  const paragraphs = challenge.problem_statement.split(/\n\n+/).filter(Boolean);
-
   return (
-    <div className="flex h-[calc(100vh-57px)] flex-col overflow-hidden bg-[#f5f1ec] md:flex-row">
+    <div data-fullbleed className="flex h-[calc(100dvh-3.5rem)] flex-col overflow-hidden bg-[#f5f1ec] md:flex-row">
 
       {/* ── Problem panel ── */}
       <div className="flex h-[45%] w-full flex-col overflow-hidden border-b border-[#d3cec6] bg-white md:h-full md:w-1/2 md:border-b-0 md:border-r">
@@ -77,23 +75,9 @@ export default async function ChallengePage({ params }: Props) {
               These test cases could not be verified against a reference solution. If a test looks wrong, it may be.
             </p>
           )}
-          <div className="space-y-4">
-            {paragraphs.map((para, i) => {
-              // Detect example blocks (lines starting with Input: / Output: / Example)
-              const isExample = /^(example|input:|output:|>>>|#)/i.test(para.trim());
-              if (isExample) {
-                return (
-                  <pre key={i} className="overflow-x-auto rounded-[8px] border border-[#d3cec6] bg-[#f5f1ec] px-4 py-3 font-mono text-[12px] leading-relaxed text-[#626260] whitespace-pre-wrap">
-                    {para}
-                  </pre>
-                );
-              }
-              return (
-                <p key={i} className="text-[14px] leading-relaxed text-[#626260]">
-                  {para}
-                </p>
-              );
-            })}
+          {/* The AI writes the statement in markdown (**Input format:**, `n`). */}
+          <div className="text-[14px] leading-relaxed text-[#626260] [&_p]:my-3 [&_p]:whitespace-pre-line [&_strong]:text-[#111111]">
+            <ChatMarkdown>{challenge.problem_statement}</ChatMarkdown>
           </div>
 
           {/* Visible examples; hidden tests stay on the server */}

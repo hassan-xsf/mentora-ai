@@ -48,3 +48,8 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# Local screenshots from browser testing
+/.playwright-mcp/
+# Example env (placeholders only) must stay tracked
+!.env.example

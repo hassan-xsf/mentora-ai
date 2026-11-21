@@ -16,7 +16,8 @@ import CareerResultsClient from "../CareerResultsClient";
 import SkillRadar from "../SkillRadar";
 
 // Roadmap generation (AI + retry + link checks) is triggered from this page.
-export const maxDuration = 180;
+// Two 110s AI attempts + link checks must fit, or a killed function keeps the charge.
+export const maxDuration = 300;
 
 type Props = { params: Promise<{ assessmentId: string }> };
 

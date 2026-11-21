@@ -14,6 +14,8 @@ export type AIQueryOptions = {
   feature?: string;
   /** Logged with the call when known; never sent to the model. */
   studentId?: string;
+  /** Per-attempt timeout; defaults to AI_TIMEOUT_MS or 60s. */
+  timeoutMs?: number;
 };
 
 function getConfig() {
@@ -147,7 +149,8 @@ async function attempt(prompt: string, url: string, token: string, timeoutMs: nu
  * (fire-and-forget) with its feature, latency, outcome and sizes.
  */
 export async function aiQuery(prompt: string, opts: AIQueryOptions = {}): Promise<string> {
-  const { url, token, timeoutMs } = getConfig();
+  const { url, token, timeoutMs: defaultTimeout } = getConfig();
+  const timeoutMs = opts.timeoutMs ?? defaultTimeout;
   const started = Date.now();
   const log = (ok: boolean, responseChars: number, error?: unknown) =>
     logAICall({

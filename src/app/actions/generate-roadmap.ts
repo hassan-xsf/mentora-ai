@@ -1,11 +1,11 @@
 "use server";
 
 import { chatCompletion } from "@/lib/ai/stream";
-import { extractJSON } from "@/lib/ai/json";
+import { parseJSONLoose } from "@/lib/ai/json";
 import { reportFallback } from "@/lib/ai/telemetry";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/auth/session";
-import { spendCredits, refundCredits } from "@/lib/credits/credits";
+import { spendCredits, refundCredits, isInsufficientCredits } from "@/lib/credits/credits";
 import { verifyLinks } from "@/lib/resources/links";
 
 type RoadmapResource = {
@@ -176,12 +176,12 @@ function buildFallbackRoadmap(careerTitle: string): GeneratedRoadmap {
 export async function generateRoadmap(
   careerTitle: string,
   careerDescription: string
-): Promise<{ roadmapId: string }> {
+): Promise<{ roadmapId: string } | { error: string }> {
   const user = await requireUser();
   const admin = createAdminClient();
 
   const career = sanitizeCareerInput(careerTitle, careerDescription);
-  if (career.title.length < 2) throw new Error("Please choose a valid career title.");
+  if (career.title.length < 2) return { error: "Please choose a valid career title." };
 
   // Ensure the students row exists (self-heal if the auth trigger never fired)
   await admin.from("students").upsert(
@@ -190,7 +190,13 @@ export async function generateRoadmap(
   );
 
   // Charge before doing any AI work; refunded below on fallback or failure.
-  await spendCredits(user.id, "generate_roadmap");
+  // Returned, not thrown: production builds replace thrown server-action messages with a generic one.
+  try {
+    await spendCredits(user.id, "generate_roadmap");
+  } catch (err) {
+    if (isInsufficientCredits(err)) return { error: err.message };
+    throw err;
+  }
 
   const prompt = `You are a senior professional in the career named in <career_title>, designing the learning roadmap you wish you had been given. Produce it as JSON.
 
@@ -226,8 +232,9 @@ Output raw JSON only, starting with { and ending with }`;
   let usedFallback = false;
 
   try {
-    const raw = await chatCompletion(prompt, { feature: "generate_roadmap", studentId: user.id });
-    roadmapData = normalizeRoadmap(JSON.parse(extractJSON(raw)) as GeneratedRoadmap, career.title);
+    // A full roadmap is ~20k chars and regularly takes 60-90s; the default 60s timeout cut those off.
+    const raw = await chatCompletion(prompt, { feature: "generate_roadmap", studentId: user.id, timeoutMs: 110_000 });
+    roadmapData = normalizeRoadmap(parseJSONLoose<GeneratedRoadmap>(raw), career.title);
 
     // If the AI under-delivered, throw to use the fallback.
     if (roadmapData.sections.length < 2) {
@@ -280,7 +287,7 @@ Output raw JSON only, starting with { and ending with }`;
   if (error || !roadmapId) {
     console.error("[generate-roadmap] create_roadmap failed:", error);
     if (!usedFallback) await refundCredits(user.id, "generate_roadmap").catch(() => undefined);
-    throw new Error("Could not save your roadmap. Your credits were not charged — please try again.");
+    return { error: "Could not save your roadmap. Your credits were not charged — please try again." };
   }
 
   return { roadmapId };

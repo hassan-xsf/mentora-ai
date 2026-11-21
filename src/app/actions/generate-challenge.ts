@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { chatCompletion } from "@/lib/ai/stream";
 import { parseJSONLoose } from "@/lib/ai/json";
 import { reportFallback } from "@/lib/ai/telemetry";
@@ -148,6 +149,7 @@ export async function generateChallenge(
       used_fallback: usedFallback,
       validated,
     });
+    revalidatePath("/", "layout"); // credits badge in the shell
     return { challengeId };
   } catch (err) {
     if (!usedFallback) await refundCredits(user.id, "generate_challenge");

@@ -88,12 +88,59 @@ export function repairTruncatedJSON(raw: string): string | null {
   return raw.slice(0, safeEnd) + safeStack.reverse().join("");
 }
 
-/** extractJSON + JSON.parse, falling back to a truncation repair. */
+/**
+ * Fix the two malformations long model replies actually produce:
+ * - an unescaped `"` inside a string (`"e.g. "Predicted vs Actual" chart"`):
+ *   a quote not followed by `, : } ]` or the end is kept as a literal quote;
+ * - a wrong closing bracket (`]` where `}` was due): close the missing levels
+ *   up to the bracket that does match, or drop a closer that matches nothing.
+ * shortcut: a stray quote followed by a comma (`"he said "hi", then"`) still breaks it; fine for model output so far.
+ */
+export function repairMalformedJSON(raw: string): string {
+  let out = "";
+  const open: string[] = [];
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < raw.length; i++) {
+    const c = raw[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') {
+        const next = raw.slice(i + 1).match(/\S/)?.[0];
+        if (next !== undefined && !",:}]".includes(next)) {
+          out += '\\"';
+          continue;
+        }
+        inString = false;
+      }
+      out += c;
+      continue;
+    }
+    if (c === '"') inString = true;
+    else if (c === "{" || c === "[") open.push(c === "{" ? "}" : "]");
+    else if (c === "}" || c === "]") {
+      if (!open.includes(c)) continue;
+      while (open[open.length - 1] !== c) out += open.pop();
+      open.pop();
+    }
+    out += c;
+  }
+  return out;
+}
+
+/** extractJSON + JSON.parse, falling back to malformation and truncation repairs. */
 export function parseJSONLoose<T>(raw: string): T {
-  const cleaned = extractJSON(raw);
+  let cleaned = extractJSON(raw);
   try {
     return JSON.parse(cleaned) as T;
   } catch (err) {
+    cleaned = repairMalformedJSON(cleaned);
+    try {
+      return JSON.parse(cleaned) as T;
+    } catch {
+      // Still broken: most likely truncated, handled below.
+    }
     const repaired = repairTruncatedJSON(cleaned);
     if (repaired === null) throw err;
     const parsed = JSON.parse(repaired) as T;

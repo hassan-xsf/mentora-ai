@@ -1,11 +1,12 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { chatCompletion } from "@/lib/ai/stream";
 import { parseJSONLoose } from "@/lib/ai/json";
 import { reportFallback } from "@/lib/ai/telemetry";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/auth/session";
-import { spendCredits, refundCredits } from "@/lib/credits/credits";
+import { spendCredits, refundCredits, isInsufficientCredits } from "@/lib/credits/credits";
 import type {
   BlueprintGraph,
   BlueprintInputs,
@@ -240,11 +241,11 @@ function cleanInputs(raw: BlueprintInputs): BlueprintInputs {
 
 export async function generateBlueprint(
   rawInputs: BlueprintInputs
-): Promise<{ blueprintId: string }> {
+): Promise<{ blueprintId: string } | { error: string }> {
   const user = await requireUser();
   const admin = createAdminClient();
   const inputs = cleanInputs(rawInputs);
-  if (!inputs.stack) throw new Error("Tell us which tech stack you know.");
+  if (!inputs.stack) return { error: "Tell us which tech stack you know." };
 
   await admin.from("students").upsert(
     {
@@ -255,7 +256,13 @@ export async function generateBlueprint(
     { onConflict: "id", ignoreDuplicates: true }
   );
 
-  await spendCredits(user.id, "generate_blueprint");
+  try {
+    await spendCredits(user.id, "generate_blueprint");
+  } catch (err) {
+    // Returned, not thrown: production builds hide thrown server-action messages.
+    if (isInsufficientCredits(err)) return { error: err.message };
+    throw err;
+  }
 
   let title: string;
   let tagline: string;
@@ -313,8 +320,9 @@ export async function generateBlueprint(
   if (error || !data) {
     console.error("[generate-blueprint] insert error:", error);
     if (!usedFallback) await refundCredits(user.id, "generate_blueprint").catch(() => undefined);
-    throw new Error("Could not save your blueprint. Your credits were not charged — please try again.");
+    return { error: "Could not save your blueprint. Your credits were not charged — please try again." };
   }
 
+  revalidatePath("/", "layout"); // credits badge in the shell
   return { blueprintId: data.id };
 }

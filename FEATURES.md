@@ -88,7 +88,7 @@ The sandbox runner is self-hosted (`runner/`). Every run uses a fresh container 
 - Every listing is checked to be in Pakistan, posted in the last 45 days, and still open.
   - Duplicates across sources are merged.
   - Listings missing from several runs in a row are expired.
-- Filters by city, field, remote, paid and recency, plus search.
+- Filters by city, field, remote, paid and recency, plus search. 20 listings per page.
 - **Recommended for you** (ranked against the careers from the student's assessments and roadmaps) and **Saved** tabs.
 - In a spot check of 15 random listings, all 15 were open.
 
@@ -140,7 +140,6 @@ Every AI action costs credits. New students get 1,000. Credit packs can be bough
 | Feature | Details |
 |---|---|
 | **New** Landing page | A public homepage with product previews of career matches, roadmaps and practice. |
-| **New** One-click demo | **Try the demo** signs into a seeded demo account (Ayesha Khan) that has roadmaps, tests, challenges and a certificate. |
 | **New** Onboarding tour | A 9-step guided tour on the first visit to the dashboard, replayable at any time. |
 | **New** Password reset | Forgot-password and reset-password pages, plus an auth callback for email links. |
 | **New** Redesigned navigation | A grouped sidebar (Learn, Career, You), an account menu and a mobile drawer. |
@@ -176,7 +175,7 @@ For admins (`ADMIN_EMAILS`). Covers every AI feature:
 - **Migration tooling:**
   - one-command migrations (`scripts/db/apply.sh`), which record what has already been applied;
   - a single-file live upgrade (`supabase/live-upgrade.sql`).
-- **Scripts:** demo-account seeding (`scripts/seed-demo.ts`) and resource link back-fill (`scripts/verify-resources.ts`).
+- **Scripts:** resource link back-fill (`scripts/verify-resources.ts`).
 - **Docs:** setup in the README, the code runner in `docs/CODE_RUNNER.md`, and the AI call sites in `AI.md`.
 
 ---
@@ -193,7 +192,7 @@ These are ranked by student need, based on research in `docs/NEXT_FEATURES_RESEA
 | 4 | Freelancing starter track | A guided route to a student's first paid gig on Fiverr or Upwork. |
 | 5 | Urdu / Roman-Urdu explanations | A toggle that re-explains hard concepts in the student's own language. |
 | 6 | Company-style screening tests | Timed tests in the format Pakistani companies use for hiring. |
+| 7 | Interactive video walkthrough | A guided, clickable video tour of the platform on the landing page, replacing the old one-click demo account. |
 
 Known limits:
 - Urdu and other non-Latin names don't render on the PDF certificate yet.
-- The shared demo account can be changed by visitors; reset it with `npx tsx scripts/seed-demo.ts --reset`.

@@ -6,21 +6,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export type ActionState = { error: string | null };
 
-const isDemo = (email: string | undefined) =>
-  !!email && !!process.env.DEMO_EMAIL && email.toLowerCase() === process.env.DEMO_EMAIL.toLowerCase();
-
-/** "Try the demo": signs the visitor into the shared demo account. */
-export async function signInDemo(): Promise<ActionState> {
-  const email = process.env.DEMO_EMAIL;
-  const password = process.env.DEMO_PASSWORD;
-  if (!email || !password) return { error: "The demo account isn't set up on this server." };
-
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) return { error: "The demo account is unavailable right now. Please create a free account instead." };
-  redirect("/dashboard");
-}
-
 /** Sets a new password for the signed-in user (reached via the reset email link). */
 export async function updatePassword(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const password = String(formData.get("password") ?? "");
@@ -31,8 +16,6 @@ export async function updatePassword(_prev: ActionState, formData: FormData): Pr
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Your reset link has expired. Request a new one." };
-  // Everyone shares the demo login; one visitor must not lock the rest out.
-  if (isDemo(user.email)) return { error: "The demo account's password can't be changed." };
 
   const { error } = await supabase.auth.updateUser({ password });
   if (error) return { error: error.message };

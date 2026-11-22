@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/ui/Logo";
-import { DemoButton } from "@/components/landing/DemoButton";
 import {
   CareerMock,
   CertificateMock,
@@ -157,11 +156,11 @@ export default function LandingPage() {
               <Link href="/sign-up" className={btnPrimary}>
                 Create a free account
               </Link>
-              <DemoButton className={btnSecondary} />
+              <Link href="#how" className={btnSecondary}>
+                See how it works
+              </Link>
             </div>
-            <p className="mt-4 text-[13px] text-[#7b7b78]">
-              1,000 free credits on sign-up · no card needed · the demo opens a ready-made student account
-            </p>
+            <p className="mt-4 text-[13px] text-[#7b7b78]">1,000 free credits on sign-up · no card needed</p>
           </div>
           <RoadmapMock />
         </section>
@@ -258,13 +257,15 @@ export default function LandingPage() {
               Your roadmap is ten questions away.
             </h2>
             <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-[#626260]">
-              Create an account to take the assessment, or look around a demo student&rsquo;s account first.
+              Create a free account and take the career assessment.
             </p>
             <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
               <Link href="/sign-up" className={btnPrimary}>
                 Create a free account
               </Link>
-              <DemoButton className={btnSecondary} />
+              <Link href="/sign-in" className={btnSecondary}>
+                Sign in
+              </Link>
             </div>
           </div>
         </section>

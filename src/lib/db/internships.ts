@@ -45,7 +45,8 @@ export interface InternshipFilters {
 }
 
 const MISSING = new Set(["42P01", "PGRST205"]); // table not created yet (migration 013 not applied)
-const LIMIT = 300;
+// The page ranks and paginates in memory, so fetch every active listing (182 today).
+const LIMIT = 1000;
 
 /** Active internships, newest first. `missing` = the table doesn't exist yet. */
 export async function listInternships(f: InternshipFilters): Promise<{ rows: Internship[]; missing: boolean }> {

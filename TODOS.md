@@ -11,6 +11,7 @@
 9. Notifications system
 10. ~~What to create? (Enter tech stack & experience and it'll guide you on the project & how to using graphs)~~ — done: `/build`
 11. Interview Practice
+12. TODO: Interactive video walkthrough of the platform (later). Replaces the removed one-click demo account.
 
 
 

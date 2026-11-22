@@ -25,7 +25,7 @@ Mentora AI guides Pakistani students from "I don't know what to study" to a veri
 | **Leaderboard & Gamification** | Weekly / monthly / all-time XP leaderboard (opt-out), XP ledger, Pakistan-time streaks, badges |
 | **Progress & Study Time** | Active study minutes per day and area, 14-day chart, tests, roadmaps and coding stats |
 | **AI Evaluation Dashboard** | `/admin/ai`: calls, success / fallback rates, p50 / p95 latency, thumbs-up rate, credits, recent failures, CSV export |
-| **Landing, Onboarding & Demo** | Public landing page, 9-step onboarding tour, one-click seeded demo account, password reset |
+| **Landing & Onboarding** | Public landing page, 9-step onboarding tour, password reset |
 | **Security** | Row Level Security: users can only read their own rows; every write goes through server code with an ownership check. Credits are refunded when the AI falls back |
 
 ---
@@ -82,10 +82,9 @@ FRESH=1 DATABASE_URL="postgresql://…" bash scripts/db/apply.sh   # new databas
 DATABASE_URL="postgresql://…" bash scripts/db/apply.sh           # existing project: applies 008+ only
 ```
 
-Then seed the demo account and back-fill link checks for existing resources:
+Then back-fill link checks for existing resources:
 
 ```bash
-npx tsx scripts/seed-demo.ts --reset
 npx tsx scripts/verify-resources.ts
 ```
 
@@ -157,7 +156,6 @@ All AI calls (career suggestions, roadmap generation, challenge creation, milest
 | `CODE_RUNNER_TOKEN` | optional | Token checked by the runner's reverse proxy |
 | `ADMIN_EMAILS` | optional | Comma-separated emails allowed into `/admin/ai` |
 | `AI_TIMEOUT_MS` | optional | AI request timeout (default 60000) |
-| `DEMO_EMAIL` / `DEMO_PASSWORD` | optional | Shared demo account behind "Try the demo" |
 | `SEARXNG_URL` | optional | Self-hosted SearXNG for the internship scraper |
 | `DATABASE_URL` | scripts only | Postgres URL for `scripts/db/apply.sh` |
 
@@ -206,7 +204,7 @@ src/
     runner/           # Piston client + grading
     db/ gamification/ credits/ auth/ supabase/
 scraper/internships/  # Pakistan internship scraper (runs every 6 h in GitHub Actions)
-scripts/              # db apply/validate, demo seed, resource back-fill, test runner
+scripts/              # db apply/validate, resource back-fill, test runner
 supabase/migrations/  # 000 + 001_add_fallback_flags + 004…016 (see Installation)
 docs/                 # code runner setup, next-feature research
 AI.md                 # every AI call site, prompt, retry and fallback policy

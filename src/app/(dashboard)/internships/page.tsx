@@ -16,6 +16,8 @@ import { SaveButton } from "./SaveButton";
 type Tab = "all" | "recommended" | "saved";
 type Search = Record<string, string | string[] | undefined>;
 
+const PAGE_SIZE = 20;
+
 const WITHIN = [
   { value: "", label: "Any time" },
   { value: "3", label: "Last 3 days" },
@@ -45,13 +47,24 @@ export default async function InternshipsPage({ searchParams }: { searchParams: 
     tab === "recommended" ? getCareerTitles(user.id) : Promise.resolve([] as string[]),
   ]);
   const { rows, missing } = await listInternships(tab === "saved" ? { ...filters, ids: [...savedIds] } : filters);
-  const shown = tab === "recommended" ? rankForCareers(rows, careers) : rows;
+  const ranked = tab === "recommended" ? rankForCareers(rows, careers) : rows;
+  const pages = Math.max(1, Math.ceil(ranked.length / PAGE_SIZE));
+  const page = Math.min(pages, Math.max(1, Math.floor(Number(one("page"))) || 1));
+  const shown = ranked.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const lastChecked = rows.reduce<string | null>((m, r) => (!m || r.last_checked_at > m ? r.last_checked_at : m), null);
 
   const tabHref = (t: Tab) => {
     const p = new URLSearchParams();
-    for (const [k, v] of Object.entries(sp)) if (typeof v === "string" && v && k !== "tab") p.set(k, v);
+    for (const [k, v] of Object.entries(sp)) if (typeof v === "string" && v && k !== "tab" && k !== "page") p.set(k, v);
     if (t !== "all") p.set("tab", t);
+    const s = p.toString();
+    return s ? `/internships?${s}` : "/internships";
+  };
+
+  const pageHref = (n: number) => {
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(sp)) if (typeof v === "string" && v && k !== "page") p.set(k, v);
+    if (n > 1) p.set("page", String(n));
     const s = p.toString();
     return s ? `/internships?${s}` : "/internships";
   };
@@ -128,11 +141,14 @@ export default async function InternshipsPage({ searchParams }: { searchParams: 
         {shown.length === 0 ? (
           <Empty tab={tab} missing={missing} noCareers={tab === "recommended" && careers.length === 0} filtered={rows.length === 0 && Object.values(filters).some(Boolean)} />
         ) : (
-          <ul className="mt-4 space-y-3">
-            {shown.map((r) => (
-              <Card key={r.id} r={r} saved={savedIds.has(r.id)} />
-            ))}
-          </ul>
+          <>
+            <ul className="mt-4 space-y-3">
+              {shown.map((r) => (
+                <Card key={r.id} r={r} saved={savedIds.has(r.id)} />
+              ))}
+            </ul>
+            <Pagination page={page} pages={pages} total={ranked.length} href={pageHref} />
+          </>
         )}
       </div>
     </div>
@@ -175,6 +191,29 @@ function Card({ r, saved }: { r: Internship; saved: boolean }) {
         {timeAgo(r.last_checked_at)}
       </p>
     </li>
+  );
+}
+
+function Pagination({ page, pages, total, href }: { page: number; pages: number; total: number; href: (n: number) => string }) {
+  const from = (page - 1) * PAGE_SIZE + 1;
+  const to = Math.min(total, page * PAGE_SIZE);
+  const btn = "flex h-9 items-center rounded-[8px] border border-[#d3cec6] bg-white px-3 text-[13px] font-medium text-[#111111] transition-colors hover:bg-[#ebe7e1]";
+  const off = "flex h-9 items-center rounded-[8px] border border-[#e4dfd7] px-3 text-[13px] font-medium text-[#c5c0b8]";
+  return (
+    <nav aria-label="Pagination" className="mt-6 flex items-center justify-between gap-3">
+      <p className="text-[12.5px] tabular-nums text-[#7b7b78]">
+        {from}–{to} of {total}
+      </p>
+      {pages > 1 && (
+        <div className="flex items-center gap-2">
+          {page > 1 ? <Link href={href(page - 1)} className={btn}>← Previous</Link> : <span aria-disabled className={off}>← Previous</span>}
+          <span className="px-1 text-[12.5px] tabular-nums text-[#626260]">
+            Page {page} of {pages}
+          </span>
+          {page < pages ? <Link href={href(page + 1)} className={btn}>Next →</Link> : <span aria-disabled className={off}>Next →</span>}
+        </div>
+      )}
+    </nav>
   );
 }
 

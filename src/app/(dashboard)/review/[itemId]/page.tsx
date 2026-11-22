@@ -5,6 +5,7 @@ import { getOwnedReviewItem, getRemedialPlan, today } from "@/lib/adaptive/revie
 import { isDue } from "@/lib/adaptive/schedule";
 import { AIFeedback } from "@/components/ai/AIFeedback";
 import { AIFallbackBadge } from "@/components/ui/AIFallbackBadge";
+import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 import QuickCheck from "./QuickCheck";
 
 // The first visit to a topic generates its remedial plan.
@@ -42,7 +43,10 @@ export default async function ReviewItemPage({ params }: Props) {
             </div>
             {plan.used_fallback && <AIFallbackBadge compact label="Fallback" />}
           </div>
-          <p className="mt-4 whitespace-pre-line text-[14px] leading-relaxed text-[#313130]">{plan.explanation}</p>
+          {/* The AI writes the lesson in markdown (*emphasis*, `code`). */}
+          <div className="mt-4 text-[14px] leading-relaxed text-[#313130] [&_p]:my-2.5">
+            <ChatMarkdown>{plan.explanation}</ChatMarkdown>
+          </div>
           {!plan.used_fallback && (
             <div className="mt-4 flex justify-end">
               <AIFeedback feature="remedial_plan" targetId={item.node.id} />
@@ -52,7 +56,9 @@ export default async function ReviewItemPage({ params }: Props) {
 
         <div className="mt-4 rounded-[12px] border border-[#d3cec6] bg-white p-6">
           <p className="text-[11px] font-medium uppercase tracking-widest text-[#ff5600]">Practice task</p>
-          <p className="mt-2 whitespace-pre-line text-[14px] leading-relaxed text-[#111111]">{plan.practice_task}</p>
+          <div className="mt-2 text-[14px] leading-relaxed text-[#111111] [&_p]:my-2.5">
+            <ChatMarkdown>{plan.practice_task}</ChatMarkdown>
+          </div>
         </div>
 
         <div className="mt-4">

@@ -11,7 +11,8 @@ import TestForm from "./TestForm";
 import StartAttempt from "./StartAttempt";
 
 // Starting (generation) and submitting (grading + explanations) call the AI.
-export const maxDuration = 120;
+// Question generation may retry once after a malformed reply.
+export const maxDuration = 180;
 
 type Props = {
   params: Promise<{ roadmapId: string; testId: string }>;

@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { chatCompletion } from "@/lib/ai/stream";
 import { parseJSONLoose } from "@/lib/ai/json";
 import { reportFallback } from "@/lib/ai/telemetry";
@@ -73,7 +74,8 @@ function normalizeNode(node: RoadmapNode, withChildren: boolean): RoadmapNode {
 
 function normalizeRoadmap(data: GeneratedRoadmap, careerTitle: string): GeneratedRoadmap {
   return {
-    title: clip(data.title, 160) || `Become a ${careerTitle}`,
+    // The prompt template says "Become a <title>", which the model copies verbatim.
+    title: (clip(data.title, 160) || `Become a ${careerTitle}`).replace(/^Become a (?=[AEIOU])/i, "Become an "),
     sections: (data.sections ?? []).slice(0, MAX.sections).map((section) => ({
       title: clip(section?.title, 120),
       nodes: (section?.nodes ?? [])
@@ -139,7 +141,7 @@ function buildFallbackRoadmap(careerTitle: string): GeneratedRoadmap {
   ];
 
   return {
-    title: `Become a ${careerTitle}`,
+    title: `Become a${/^[AEIOU]/i.test(careerTitle) ? "n" : ""} ${careerTitle}`,
     sections: sections.map((s) => ({
       title: s.title,
       nodes: s.nodeTitles.map((title, idx) => ({
@@ -226,32 +228,44 @@ TASKS
 - Good: "Build a CLI that reads a CSV and prints the top 10 rows by a column the user names." Bad: "Learn file handling."
 - At least one task per section should produce something portfolio-worthy.
 
+Never put a double quote inside a string value; use single quotes there instead.
 Output raw JSON only, starting with { and ending with }`;
 
   let roadmapData: GeneratedRoadmap;
   let usedFallback = false;
 
-  try {
-    // A full roadmap is ~20k chars and regularly takes 60-90s; the default 60s timeout cut those off.
-    const raw = await chatCompletion(prompt, { feature: "generate_roadmap", studentId: user.id, timeoutMs: 110_000 });
-    roadmapData = normalizeRoadmap(parseJSONLoose<GeneratedRoadmap>(raw), career.title);
+  // The model emits malformed JSON on roughly a third of these ~20k-char replies,
+  // so a bad reply gets one more try while the route's time budget allows it.
+  const deadline = Date.now() + 200_000;
+  for (let attemptNo = 0; ; attemptNo++) {
+    try {
+      // Full roadmaps often take 60-120s; the default 60s timeout cut those off.
+      const raw = await chatCompletion(prompt, { feature: "generate_roadmap", studentId: user.id, timeoutMs: 120_000 });
+      roadmapData = normalizeRoadmap(parseJSONLoose<GeneratedRoadmap>(raw), career.title);
 
-    // If the AI under-delivered, throw to use the fallback.
-    if (roadmapData.sections.length < 2) {
-      throw new Error(`AI returned only ${roadmapData.sections.length} sections`);
-    }
-    for (const section of roadmapData.sections) {
-      if (section.nodes.length < 2) {
-        throw new Error(`Section "${section.title}" has only ${section.nodes.length} nodes`);
+      // If the AI under-delivered, throw to retry or use the fallback.
+      if (roadmapData.sections.length < 2) {
+        throw new Error(`AI returned only ${roadmapData.sections.length} sections`);
       }
+      for (const section of roadmapData.sections) {
+        if (section.nodes.length < 2) {
+          throw new Error(`Section "${section.title}" has only ${section.nodes.length} nodes`);
+        }
+      }
+      break;
+    } catch (err) {
+      if (attemptNo === 0 && deadline - Date.now() > 90_000) {
+        console.warn("[generate-roadmap] unusable AI reply, retrying once:", err);
+        continue;
+      }
+      console.error("[generate-roadmap] AI parse/validation failed, using fallback:", err);
+      roadmapData = buildFallbackRoadmap(career.title);
+      usedFallback = true;
+      // Canned content is free.
+      await refundCredits(user.id, "generate_roadmap").catch(() => undefined);
+      await reportFallback("generate_roadmap", err instanceof Error ? err.message : String(err));
+      break;
     }
-  } catch (err) {
-    console.error("[generate-roadmap] AI parse/validation failed, using fallback:", err);
-    roadmapData = buildFallbackRoadmap(career.title);
-    usedFallback = true;
-    // Canned content is free.
-    await refundCredits(user.id, "generate_roadmap").catch(() => undefined);
-    await reportFallback("generate_roadmap", err instanceof Error ? err.message : String(err));
   }
 
   // Verify every resource link in one bounded pass, then write them back in order.
@@ -290,5 +304,6 @@ Output raw JSON only, starting with { and ending with }`;
     return { error: "Could not save your roadmap. Your credits were not charged — please try again." };
   }
 
+  revalidatePath("/", "layout"); // credits badge in the shell
   return { roadmapId };
 }

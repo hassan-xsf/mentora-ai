@@ -88,7 +88,8 @@ export default async function InternshipsPage({ searchParams }: { searchParams: 
           ))}
         </nav>
 
-        <form method="get" className="mt-4 grid gap-2 rounded-[12px] border border-[#d3cec6] bg-white p-3 sm:grid-cols-[1fr_auto_auto_auto]">
+        {/* key: remount on every URL change, or Reset/tab links leave stale select/checkbox values (defaultValue only applies on mount). */}
+        <form key={JSON.stringify(sp)} method="get" className="mt-4 grid gap-2 rounded-[12px] border border-[#d3cec6] bg-white p-3 sm:grid-cols-[1fr_auto_auto_auto]">
           {tab !== "all" && <input type="hidden" name="tab" value={tab} />}
           <input
             type="search"

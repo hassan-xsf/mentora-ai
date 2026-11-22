@@ -40,17 +40,27 @@ Return ONLY this JSON, no markdown:
 {"questions":[
  {"type":"mcq","topic_ref":"N1","question":"...?","options":["...","...","...","..."],"correct_index":0},
  {"type":"short","topic_ref":"N2","question":"...","rubric":"Full marks requires: (1) ... (2) ... (3) ...","model_answer":"..."}
-]}`;
+]}
+"rubric" and "model_answer" are single plain strings, never objects or arrays.`;
 
-  try {
-    const raw = await chatCompletion(prompt, { feature: "generate_milestone_test", studentId });
-    const parsed = parseGeneratedQuestions(parseJSONLoose(raw), refs);
-    if (!parsed) throw new Error("invalid question set");
-    return parsed;
-  } catch (err) {
-    console.error("[adaptive] question generation failed:", err);
-    await reportFallback("generate_milestone_test", errMsg(err));
-    return null;
+  const started = Date.now();
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const raw = await chatCompletion(prompt, { feature: "generate_milestone_test", studentId });
+      const parsed = parseGeneratedQuestions(parseJSONLoose(raw), refs);
+      if (!parsed) throw new Error("invalid question set");
+      return parsed;
+    } catch (err) {
+      // A malformed reply (about 1 in 3) gets one more try if it came back quickly;
+      // otherwise the student is dropped into practice mode, which can't unlock anything.
+      if (attempt === 0 && Date.now() - started < 40_000) {
+        console.warn("[adaptive] unusable question set, retrying once:", err);
+        continue;
+      }
+      console.error("[adaptive] question generation failed:", err);
+      await reportFallback("generate_milestone_test", errMsg(err));
+      return null;
+    }
   }
 }
 
@@ -146,8 +156,15 @@ Return ONLY JSON: {"explanations":[{"id":"q1","explanation":"..."}]}`;
     let got = 0;
     for (const e of data.explanations ?? []) {
       const id = String(e?.id ?? "");
-      if (id in canned && typeof e.explanation === "string" && e.explanation.trim()) {
-        out[id] = e.explanation.trim().slice(0, 1000);
+      // The model sometimes splits it into {likely_misconception, correct_idea}.
+      const text =
+        typeof e?.explanation === "string"
+          ? e.explanation
+          : e?.explanation && typeof e.explanation === "object"
+            ? Object.values(e.explanation).filter((v) => typeof v === "string").join(" ")
+            : "";
+      if (id in canned && text.trim()) {
+        out[id] = text.trim().slice(0, 1000);
         got++;
       }
     }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCertificateByCode } from "@/lib/db/certificates";
 import { CertificateCard } from "@/components/certificates/CertificateCard";
+import { formatIssued } from "@/components/certificates/certificate-pdf";
 import type { CertificateLevel } from "@/types";
 
 // Recipient names shouldn't end up in search results.
@@ -47,7 +48,7 @@ export default async function VerifyCertificatePage({ params }: Props) {
             </p>
             <p className="text-[12px] text-[#0a7d30]/80">
               Issued by Mentora to {certificate.recipient_name} on{" "}
-              {new Date(certificate.issued_at).toLocaleDateString()}.
+              {formatIssued(certificate.issued_at)}.
             </p>
           </div>
         </div>
